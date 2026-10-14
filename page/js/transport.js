@@ -6,7 +6,7 @@ const TR = (() => {
   const a = $("#lecteur"), toile = $("#toile"), ligne = $("#ligne");
   let carte = [{t: 0, mesure: 0, bpm: 120, num: 4, den: 4}], duree = 0, L = 0, R = 0, boucle = false, depart = 0;
   let ctx = null, gain = null, an = [], pic = [-90, -90], picT = [0, 0], pret = false, aJouer = false;
-  let attente = false, reprise = 0, reprendre = false;
+  let attente = false, reprise = 0, reprendre = false, relance = false;
   let enCalcul = false;                 // premier calcul du mixage demandé par ▶ : la touche clignote   // pendant le chargement d'un nouveau mixage : où reprendre, et rejouer ?
   const noiresParMesure = s => s.num * 4 / s.den;
   const seg = t => carte.reduce((s, x) => x.t <= t ? x : s, carte[0]);
@@ -134,7 +134,16 @@ const TR = (() => {
   $("#t-debut").addEventListener("click", () => va(boucle ? L : 0));
   $("#t-recul").addEventListener("click", () => mesureSuivante(-1));
   $("#t-avance").addEventListener("click", () => mesureSuivante(1));
-  $("#t-boucle").addEventListener("click", e => { boucle = !boucle; e.currentTarget.setAttribute("aria-pressed", boucle); });
+  // boucle : si des mesures sont sélectionnées (onglet Montage), elle se pose sur elles et la lecture s'y place
+  let mesuresChoisies = () => null;
+  $("#t-boucle").addEventListener("click", e => {
+    boucle = !boucle; e.currentTarget.setAttribute("aria-pressed", boucle);
+    const s = boucle && duree ? mesuresChoisies() : null;
+    if (s) {
+      L = tempsA(s.de - 1); R = Math.min(duree, tempsA(s.a)); affLoc();
+      const t = ici(); if (t < L || t >= R) va(L);
+    }
+  });
   $("#t-setL").addEventListener("click", () => poseLoc("L"));
   $("#t-setR").addEventListener("click", () => poseLoc("R"));
   $("#t-vol").addEventListener("input", e => { const v = +e.target.value; $("#t-volv").textContent = v; if (gain) gain.gain.value = v / 100; else a.volume = v / 100; });
@@ -150,6 +159,15 @@ const TR = (() => {
   return {
     nouveauMorceau(M) { a.pause(); a.removeAttribute("src"); a.load(); attente = false; carte = M.tempos && M.tempos.length ? M.tempos : carte;
       duree = M.duree; depart = 0; L = 0; R = Math.min(duree, tempsA(4)); affLoc(); etatLecture(); },
+    // même morceau, autre contenu (changement d'onglet vers ou depuis le Montage, montage ou texte appliqué, autre version) :
+    // on garde la position et la boucle ; si on écoutait, le nouveau contenu est calculé puis rejoué au même endroit
+    nouveauContenu(M) {
+      const joue = attente ? reprendre : !!a.src && !a.paused, t = ici();
+      a.pause(); a.removeAttribute("src"); a.load(); attente = false;
+      carte = M.tempos && M.tempos.length ? M.tempos : carte; duree = M.duree;
+      depart = Math.min(t, duree); R = Math.min(R, duree); L = Math.min(L, R); affLoc(); etatLecture();
+      if (joue && !relance) { relance = true; setTimeout(() => { relance = false; lecture(); }, 0); }   // une fois l'onglet en place
+    },
     aUnMixage: () => !!a.src,
     calcul(oui) { enCalcul = oui; $("#t-play").classList.toggle("calcul", oui); if (!oui) aJouer = aJouer && !!a.src; },
     majCarte(M) {   // le montage a changé : nouvelle carte des mesures, sans arrêter la lecture
@@ -157,6 +175,7 @@ const TR = (() => {
       R = Math.min(R, duree); L = Math.min(L, R); affLoc();
     },
     mesure: () => duree ? mesureA(ici()) : -1,          // position en mesures (0 = début de la mesure 1)
+    boucleSur(f) { mesuresChoisies = f; },             // f() → {de, a} (mesures sélectionnées, 1 = première) ou null
     vaMesure: m => va(tempsA(m)),
     charge(url) {   // nouveau mixage : on reprend à la même position, et on rejoue si on jouait
       reprendre = (attente ? reprendre : !a.paused) || aJouer || !pret; aJouer = false;

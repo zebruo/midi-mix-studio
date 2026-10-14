@@ -16,7 +16,10 @@ body{margin:0;background:var(--panel);color:var(--text);font:14px/1.45 var(--bod
 label.k{font:600 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 select,button,input[type=search]{font:500 13px var(--body);color:var(--text);background:var(--rail);border:1px solid var(--line);border-radius:4px;padding:7px 10px}
 button{cursor:pointer}
-button:disabled{opacity:.45;cursor:wait}
+button.ico{display:inline-flex;align-items:center;justify-content:center}   /* bouton icône (SVG fait main, 16 px) */
+button.ico svg{display:block;width:16px;height:16px;fill:currentColor}
+button:disabled{opacity:.45;cursor:default}
+body.occupe button:disabled{cursor:progress}   /* curseur d'attente seulement pendant un calcul (occupe) */
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 input[type=range]{width:120px;accent-color:var(--amber)}
 .val{font:12px var(--mono);color:var(--muted);width:42px;text-align:right;font-variant-numeric:tabular-nums}

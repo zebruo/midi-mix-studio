@@ -258,8 +258,12 @@ def assemble(mid, segments):
                         continue
                     cle = _cle_etat(m)
                     if cle is not None:
-                        if cle in courant and _signature(courant[cle]) == _signature(m):
-                            continue                # déjà en place (rétabli au début de la plage)
+                        if courant.get(cle) is m:
+                            continue                # déjà rétabli au début de la plage
+                        # un réglage identique à celui en place est inutile… sauf tempo, chiffrage et tonalité :
+                        # répétés, ils marquent les parties du morceau (ex. une strophe de psaume toutes les 24 mesures)
+                        if cle in courant and _signature(courant[cle]) == _signature(m) and not isinstance(cle, str):
+                            continue
                         courant[cle] = m
                     ev.append((t + dec, 1, m, None))
             if remplace is None:

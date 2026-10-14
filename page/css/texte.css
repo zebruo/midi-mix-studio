@@ -12,8 +12,15 @@
 .tx-filtres input[type=search]{width:200px;padding:5px 8px;font:500 13px var(--body);color:var(--text);background:var(--rail);
   border:1px solid var(--line);border-radius:4px}
 #tx-rech,#tx-remp{font-family:var(--mono)}
-.tx-actions{font:12px var(--mono);color:var(--muted)}
+#tx-tableau{display:flex;flex-direction:column;gap:10px}
+.tx-actions{font:12px var(--mono);color:var(--muted);gap:8px 0}
 .tx-actions button:disabled{opacity:.4}
+/* groupes de boutons : passent à la ligne d'un seul bloc, séparés par un trait */
+.tx-groupe{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;padding:0 12px;border-left:1px solid var(--line)}
+.tx-groupe:first-child{padding-left:0;border-left:none}
+.tx-groupe .k{font:600 11px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.tx-groupe button[data-a="dur-"],.tx-groupe button[data-a="dur+"]{min-width:30px}
+#tx-choix{min-width:21ch}   /* « 12 ligne(s) cochée(s) : » apparaît sans décaler les boutons */
 .tx-erreurs{background:color-mix(in srgb,var(--led) 10%,transparent);border:1px solid color-mix(in srgb,var(--led) 50%,transparent);
   border-radius:4px;padding:8px 12px;font:12.5px var(--mono);color:#ffb2a8;max-height:140px;overflow:auto}
 .tx-erreurs button{background:none;border:none;padding:0;color:#ffd2cc;text-decoration:underline;cursor:pointer;font:inherit}

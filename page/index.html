@@ -4,61 +4,55 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mixeur MIDI</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="icone.png" type="image/png">
 <link rel="stylesheet" href="css/common.css">
 <link rel="stylesheet" href="css/console.css">
 <link rel="stylesheet" href="css/transport.css">
 <link rel="stylesheet" href="css/montage.css">
 <link rel="stylesheet" href="css/texte.css">
+<link rel="stylesheet" href="css/sons.css">
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">Mixeur MIDI<small>FluidSynth · sfizz · GeneralUser GS · Salamander · Virtual Playing Orchestra</small></div>
+    <div class="brand">Mixeur MIDI<small>FluidSynth · sfizz · GeneralUser GS · Salamander · Virtual Playing Orchestra<span class="version" id="version"></span></small></div>
     <div class="file">
       <label class="k" for="fichier">Morceau</label>
-      <select id="fichier"><option>Chargement de la liste…</option></select>
-      <button id="charger" type="button">Charger</button>
+      <select id="fichier" title="Choisir un morceau l'ouvre aussitôt"><option>Chargement de la liste…</option></select>
       <span class="meta" id="meta"></span>
     </div>
     <div class="doc" id="doc" hidden>
       <span class="doc-etat" id="doc-etat" aria-live="polite"></span>
-      <button type="button" id="doc-annuler" title="Revenir à la version précédente du document (annule le dernier montage ou la dernière correction appliqués)">↶ version</button>
-      <button type="button" id="doc-retablir" title="Rétablir la version suivante du document">↷</button>
-      <button type="button" id="doc-enregistrer" class="play" title="Enregistrer (Ctrl+S) : réglages seuls → .mix.json du morceau ; notes ou structure modifiées → copie _v2, _v3…">Enregistrer</button>
-      <button type="button" id="doc-version" title="Enregistrer dans une nouvelle copie (prochain numéro libre)">Nouvelle version</button>
+      <button type="button" id="doc-annuler" title="Annuler (Ctrl+Z)">↶ Annuler</button>
+      <button type="button" id="doc-retablir" title="Rétablir (Ctrl+Y)">↷ Rétablir</button>
+      <button type="button" id="doc-enregistrer" class="play ico" aria-label="Enregistrer" title="Enregistrer (Ctrl+S)"><svg viewBox="0 0 16 16"><path fill-rule="evenodd" d="M2 1h9.6L15 4.4V14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1ZM4.5 2.5V6h6.5V2.5ZM8.6 3.1h1.5v2.3H8.6ZM3.5 8.5h9v5h-9Z"/></svg></button>
+      <button type="button" id="doc-version" class="ico" aria-label="Enregistrer une copie" title="Enregistrer une copie (_v2, _v3…)"><svg viewBox="0 0 16 16"><mask id="masque-copie"><rect width="16" height="16" fill="#fff"/><path d="M4.7 3H13.2L16.8 6.6V17H4.7Z" fill="#000"/></mask><path fill-rule="evenodd" opacity=".55" mask="url(#masque-copie)" transform="scale(.75)" d="M2 1h9.6L15 4.4V14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1ZM4.5 2.5V6h6.5V2.5ZM8.6 3.1h1.5v2.3H8.6ZM3.5 8.5h9v5h-9Z"/><path fill-rule="evenodd" transform="translate(4.4 4.4) scale(.725)" d="M2 1h9.6L15 4.4V14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1ZM4.5 2.5V6h6.5V2.5ZM8.6 3.1h1.5v2.3H8.6ZM3.5 8.5h9v5h-9Z"/></svg></button>
     </div>
   </header>
 
   <nav class="onglets" role="tablist" aria-label="Mode">
     <button role="tab" id="onglet-mixage" aria-selected="true" aria-controls="panneau-mixage" type="button">Mixage</button>
     <button role="tab" id="onglet-montage" aria-selected="false" aria-controls="panneau-montage" type="button">Montage</button>
-    <button role="tab" id="onglet-texte" aria-selected="false" aria-controls="panneau-texte" type="button">Texte</button>
+    <button role="tab" id="onglet-texte" aria-selected="false" aria-controls="panneau-texte" type="button">Événements</button>
   </nav>
 
   <div id="panneau-mixage" role="tabpanel" aria-labelledby="onglet-mixage" class="panneau">
   <div class="legend">
     <span class="chip gu">FluidSynth · GeneralUser — intimiste</span>
     <span class="chip sf">sfizz — lyrique</span>
-    <div class="recherche">
-      <label class="k" for="filtre">Chercher un son</label>
-      <input id="filtre" type="search" placeholder="ex. cello, flûte, piano…">
-    </div>
   </div>
 
   <section class="board" aria-label="Pistes">
     <table>
-      <thead><tr><th>Can.</th><th>Piste</th><th>Moteur</th><th>Son</th><th>Notes</th><th>Volume</th><th>Pan</th><th>Niveau</th><th>M / S</th></tr></thead>
-      <tbody id="pistes"><tr><td colspan="9" class="vide">Choisissez un morceau puis « Charger ».</td></tr></tbody>
+      <thead><tr><th>Can.</th><th>Piste</th><th>Son</th><th>Notes</th><th>Volume</th><th>Pan</th><th>Niveau</th><th>M / S</th></tr></thead>
+      <tbody id="pistes"><tr><td colspan="8" class="vide">Choisissez un morceau dans la liste « Morceau ».</td></tr></tbody>
     </table>
   </section>
   </div>
 
   <section id="panneau-montage" role="tabpanel" aria-labelledby="onglet-montage" class="panneau montage" hidden>
     <div class="mt-outils">
-      <div class="mt-groupe">
-        <button type="button" id="mt-annuler" title="Annuler (Ctrl+Z)">↶ Annuler</button>
-        <button type="button" id="mt-retablir" title="Rétablir (Ctrl+Y)">↷ Rétablir</button>
-      </div>
       <div class="mt-groupe">
         <button type="button" id="mt-couper" title="Couper la sélection (Ctrl+X)">Couper</button>
         <button type="button" id="mt-copier" title="Copier la sélection (Ctrl+C)">Copier</button>
@@ -69,7 +63,7 @@
         <button type="button" id="mt-garder" title="Ne garder que la sélection">Garder la sélection</button>
       </div>
       <div class="mt-groupe droite">
-        <button type="button" id="mt-reinit" title="Revenir au morceau d'origine">Repartir de l'original</button>
+        <button type="button" id="mt-reinit" title="Abandonner le montage pas encore appliqué : revenir au document tel qu'il était en arrivant dans l'onglet (↶ Annuler le rétablit)">Abandonner le montage</button>
       </div>
     </div>
     <div class="mt-info" id="mt-info" aria-live="polite"></div>
@@ -79,7 +73,14 @@
       <canvas id="mt-grille" aria-label="Activité des pistes dans le montage"></canvas>
     </div>
     <div class="mt-detail">
-      <div class="mt-detail-titre" id="mt-detail-titre">Détail : sélectionnez une ou plusieurs mesures (montage ou original) pour voir leurs notes.</div>
+      <div class="mt-detail-tete">
+        <div class="mt-detail-titre" id="mt-detail-titre">Détail : sélectionnez une ou plusieurs mesures (montage ou original) pour voir leurs notes.</div>
+        <div class="mt-detail-boutons">
+          <button type="button" id="mt-suivre" aria-pressed="false" aria-label="Suivre la lecture" hidden
+            title="Suivre la lecture : le détail passe aux mesures suivantes quand la tête de lecture sort de celles affichées (la sélection suit)"><svg viewBox="0 0 16 16"><path d="M2 1.5h6L5 5z"/><path d="M5 4v10.5M8 9.5h4" fill="none" stroke="currentColor" stroke-width="1.83"/><path d="M11 6.5 15 9.5 11 12.5z"/></svg></button>
+          <button type="button" id="mt-detail-fermer" title="Fermer le détail (Échap)" aria-label="Fermer le détail" hidden>✕</button>
+        </div>
+      </div>
       <div class="mt-edition" id="mt-edition" hidden>
         <span class="mt-notes-info" id="mt-notes-info">aucune note sélectionnée</span>
         <label class="k" for="mt-pas">Grille</label>
@@ -103,10 +104,6 @@
       <div class="mt-detail-zone"><canvas id="mt-detail" aria-label="Notes des mesures sélectionnées"></canvas>
         <div class="mt-bulle" id="mt-bulle" hidden></div></div>
     </div>
-    <p class="note">Glissez sur l'<b>original</b> (le document tel qu'il était en arrivant dans l'onglet) pour choisir des mesures à copier,
-      ou sur le <b>montage</b> pour sélectionner ; glissez une sélection du montage pour la déplacer ; double-clic = s'y placer pour l'écoute.
-      ▶ joue un aperçu rapide. En quittant l'onglet (ou avec « Enregistrer »), le montage est appliqué au document avec des raccords
-      propres (notes qui résonnent, instruments, tempo) : les onglets Mixage et Texte le voient alors.</p>
   </section>
 
   <section id="panneau-texte" role="tabpanel" aria-labelledby="onglet-texte" class="panneau texte" hidden>
@@ -114,10 +111,6 @@
       <div class="mt-groupe">
         <button type="button" id="tx-vue-tableau" class="tx-vue" aria-pressed="true">Tableau</button>
         <button type="button" id="tx-vue-brut" class="tx-vue" aria-pressed="false">Texte brut</button>
-      </div>
-      <div class="mt-groupe">
-        <button type="button" id="tx-annuler" title="Annuler (Ctrl+Z)">↶ Annuler</button>
-        <button type="button" id="tx-retablir" title="Rétablir (Ctrl+Y)">↷ Rétablir</button>
       </div>
       <span class="tx-etat" id="tx-etat" aria-live="polite"></span>
       <div class="mt-groupe droite">
@@ -140,18 +133,34 @@
         <button type="button" id="tx-effacer-filtres">Tout afficher</button>
       </div>
       <div class="tx-actions">
-        <span id="tx-choix"></span>
-        <button type="button" id="tx-cocher-filtre" title="Cocher toutes les lignes qui correspondent aux filtres (toutes les pages)">Cocher tout le filtre</button>
-        <button type="button" id="tx-decocher" title="Ne plus rien cocher">Décocher</button>
-        <button type="button" data-a="vel-10">− doux (vél. −10)</button><button type="button" data-a="vel+10">+ fort (vél. +10)</button>
-        <button type="button" data-a="tr-12">8va ↓</button><button type="button" data-a="tr-1">½ ↓</button>
-        <button type="button" data-a="tr+1">½ ↑</button><button type="button" data-a="tr+12">8va ↑</button>
-        <button type="button" data-a="dec-1">← 1 temps</button><button type="button" data-a="dec+1">1 temps →</button>
-        <button type="button" data-a="dur-" title="Raccourcir les notes cochées d'1/8 de temps">durée −</button>
-        <button type="button" data-a="dur+" title="Allonger les notes cochées d'1/8 de temps">durée +</button>
-        <button type="button" data-a="lie" title="Lier : chaque note cochée dure jusqu'à la note suivante de sa piste, avec un petit souffle (1/16 de temps)">Lié</button>
-        <button type="button" data-a="cale" title="Ramener exactement sur le temps (ou le quart de temps) les notes qui attaquent un peu avant ou après (1/16 de temps au plus) ; la fin de chaque note ne bouge pas">Caler sur le temps</button>
-        <button type="button" data-a="suppr">Supprimer les lignes</button>
+        <div class="tx-groupe">
+          <span id="tx-choix"></span>
+          <button type="button" id="tx-cocher-filtre" title="Cocher toutes les lignes qui correspondent aux filtres (toutes les pages)">Cocher tout le filtre</button>
+          <button type="button" id="tx-decocher" title="Ne plus rien cocher">Décocher</button>
+        </div>
+        <div class="tx-groupe" role="group" aria-label="Vélocité">
+          <span class="k">Vélocité</span>
+          <button type="button" data-a="vel-10" title="Vélocité −10">− doux</button><button type="button" data-a="vel+10" title="Vélocité +10">+ fort</button>
+        </div>
+        <div class="tx-groupe" role="group" aria-label="Hauteur">
+          <span class="k">Hauteur</span>
+          <button type="button" data-a="tr-12" title="Une octave plus bas">8va ↓</button><button type="button" data-a="tr-1" title="Un demi-ton plus bas">½ ↓</button>
+          <button type="button" data-a="tr+1" title="Un demi-ton plus haut">½ ↑</button><button type="button" data-a="tr+12" title="Une octave plus haut">8va ↑</button>
+        </div>
+        <div class="tx-groupe" role="group" aria-label="Position">
+          <span class="k">Position</span>
+          <button type="button" data-a="dec-1">← 1 temps</button><button type="button" data-a="dec+1">1 temps →</button>
+          <button type="button" data-a="cale" title="Ramener exactement sur le temps (ou le quart de temps) les notes qui attaquent un peu avant ou après (1/16 de temps au plus) ; la fin de chaque note ne bouge pas">Caler sur le temps</button>
+        </div>
+        <div class="tx-groupe" role="group" aria-label="Durée">
+          <span class="k">Durée</span>
+          <button type="button" data-a="dur-" title="Raccourcir les notes cochées d'1/8 de temps">−</button>
+          <button type="button" data-a="dur+" title="Allonger les notes cochées d'1/8 de temps">+</button>
+          <button type="button" data-a="lie" title="Lier : chaque note cochée dure jusqu'à la note suivante de sa piste, avec un petit souffle (1/16 de temps)">Lié</button>
+        </div>
+        <div class="tx-groupe">
+          <button type="button" data-a="suppr">Supprimer les lignes</button>
+        </div>
       </div>
       <div class="tx-table-zone">
         <table class="tx-table">
@@ -193,7 +202,7 @@
             <button class="touche" id="t-stop" type="button" title="Stop (retour au départ de lecture)" aria-label="Stop"><svg viewBox="0 0 16 16"><path d="M3 3h10v10H3z"/></svg></button>
             <button class="touche lecture" id="t-play" type="button" title="Lecture / pause (barre d'espace)" aria-label="Lecture" aria-pressed="false"><svg viewBox="0 0 16 16" id="ico-play"><path d="M4 2l10 6-10 6z"/></svg></button>
             <button class="touche" id="t-avance" type="button" title="Avancer d'une mesure" aria-label="Avancer"><svg viewBox="0 0 16 16"><path d="M1 3v10l7-5zM8 3v10l7-5z"/></svg></button>
-            <button class="touche" id="t-boucle" type="button" title="Boucle entre L et R (touche B)" aria-label="Boucle" aria-pressed="false"><svg viewBox="0 0 16 16"><path d="M4 5h7V3l3 3-3 3V7H4a2 2 0 0 0 0 4h1v2H4a4 4 0 0 1 0-8zm8 6h-1V9h1a2 2 0 0 0 0-4h-.1V3H12a4 4 0 0 1 0 8z"/></svg></button>
+            <button class="touche" id="t-boucle" type="button" title="Boucle entre L et R (touche B)" aria-label="Boucle" aria-pressed="false"><svg viewBox="0 0 16 16"><path d="M4.6 4.4A3.6 3.6 0 0 0 4.6 11.6H7.8M11.4 11.6A3.6 3.6 0 0 0 11.4 4.4H8.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.6 9.2 10.4 11.6 7.6 14zM8.4 2 5.6 4.4 8.4 6.8z"/></svg></button>
           </div></div>
         <div class="bloc"><span class="etiq">Position · mesure . temps . tick</span><div class="lcd" id="lcd-pos">  1 . 1 . 000</div></div>
         <div class="bloc"><span class="etiq">Temps</span><div class="lcd vert" id="lcd-temps">0:00.000</div></div>
@@ -229,7 +238,6 @@
       <button class="exp mixage-seul" id="wav" type="button">Exporter WAV</button>
       <div class="droite">
         <button class="exp" id="vider" type="button">Vider le cache</button>
-        <button class="exp" id="quitter" type="button">Quitter</button>
       </div>
     </div>
     <div class="status" id="status" role="status"></div>
@@ -237,6 +245,7 @@
 </div>
 
 <script src="js/outils.js"></script>
+<script src="js/sons.js"></script>
 <script src="js/pistes.js"></script>
 <script src="js/transport.js"></script>
 <script src="js/montage.js"></script>

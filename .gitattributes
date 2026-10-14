@@ -1,0 +1,24 @@
+# Fins de ligne : LF dans le dépôt et sur le disque, quel que soit le réglage core.autocrlf du PC
+# (VS Code et le Bloc-notes de Windows 11 lisent le LF sans problème).
+* text=auto eol=lf
+
+# Scripts Windows, s'il y en a un jour : CRLF obligatoire
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Fichiers binaires : jamais convertis, pas de diff texte
+*.ico  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.mid  binary
+*.midi binary
+*.sf2  binary
+*.flac binary
+*.mp3  binary
+*.wav  binary
+
+# Fichiers exclus des archives de release (git archive / ZIP de GitHub) : ils ne servent qu'à Git
+.gitignore     export-ignore
+.gitattributes export-ignore

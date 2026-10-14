@@ -24,6 +24,7 @@ const demandeEcoute = () => ONGLET === "montage"
 // ou chaque modification du montage relance le calcul en arrière-plan ; la lecture continue au même endroit.
 let minuterie = null, enCours = false, encore = false;
 function aChange() {
+  REG.note();
   if (!MORCEAU || !TR.aUnMixage()) return;          // pas encore écouté : ▶ fera le premier calcul
   clearTimeout(minuterie); minuterie = setTimeout(remixe, 250);
 }
@@ -40,6 +41,29 @@ async function remixe() {
   if (encore) remixe(); else cache();
 }
 
+// Historique des réglages du mixage (son, volume, pan, muet/solo, écho, volume général, fondu) pour Annuler / Rétablir
+// dans l'onglet Mixage. Chaque réglage terminé (curseur relâché, son choisi…) est noté par aChange.
+const REG = (() => {
+  let hist = [], futur = [], dernier = null;
+  const etat = () => JSON.stringify(reglages());
+  function va(depuis, vers) {
+    if (!depuis.length) return;
+    vers.push(dernier); dernier = depuis.pop();
+    appliqueReglages(JSON.parse(dernier)); dessine(); aChange();
+  }
+  return {
+    depart() { hist = []; futur = []; dernier = etat(); },   // nouveau morceau
+    suit() { dernier = etat(); },                           // nouvelle version du document : les réglages restent
+    note() {
+      if (dernier === null) return;
+      const e = etat(); if (e === dernier) return;
+      hist.push(dernier); if (hist.length > 200) hist.shift(); futur = []; dernier = e;
+    },
+    annuler() { va(hist, futur); }, retablir() { va(futur, hist); },
+    peutAnnuler: () => hist.length > 0, peutRetablir: () => futur.length > 0, enAttente: () => false,
+  };
+})();
+
 // ───── document de travail
 function appliqueReglages(r) {
   // un réglage sans instrument (ancien fichier) vaut pour toutes les lignes de son canal
@@ -54,7 +78,7 @@ function appliqueReglages(r) {
 function appliqueDoc(r, ouverture) {
   const M = r.morceau;
   if (!M.montage || !M.montage.notes)              // page plus récente que le programme qui tourne
-    throw new Error("Le mixeur qui tourne est une ancienne version : cliquez sur « Quitter », relancez-le par le raccourci du bureau, puis Ctrl+F5.");
+    throw new Error(ANCIENNE_VERSION);
   const anciennes = PISTES;
   DOC = r.doc; MORCEAU = M; PISTES = M.pistes;
   let note = "";
@@ -69,10 +93,12 @@ function appliqueDoc(r, ouverture) {
       if (q) Object.assign(p, {son: q.son, volume: q.volume, pan: q.pan, muet: q.muet, solo: q.solo});
     }
   }
+  ouverture ? REG.depart() : REG.suit();
   const d = Math.round(MORCEAU.duree);
   $("#meta").textContent = `${PISTES.length} pistes · ${Math.floor(d / 60)} min ${String(d % 60).padStart(2, "0")}${note}`;
   dessine(); MT.nouveauMorceau(); TX.nouveauMorceau();
-  TR.nouveauMorceau(ONGLET === "montage" ? MT.plan() : MORCEAU);
+  // un autre morceau repart du début ; une nouvelle version du même document garde la position (et la lecture)
+  TR[ouverture ? "nouveauMorceau" : "nouveauContenu"](ONGLET === "montage" ? MT.plan() : MORCEAU);
   majDoc();
 }
 // le montage ou les corrections du texte en cours deviennent une nouvelle version du document
@@ -104,14 +130,16 @@ function majDoc() {
   $("#doc-etat").innerHTML = (m ? `<span class="modif">● modifié</span>` : `<span class="ok">✓ enregistré</span>`)
     + ` · ${DOC.copie ? "copie" : "fichier"} <b>${echappe(nomDe(DOC.copie || DOC.original))}</b>`
     + (DOC.versions.length > 1 ? ` · version ${i + 1}/${DOC.versions.length}` : "");
-  $("#doc-annuler").disabled = i <= 0;
-  $("#doc-retablir").disabled = i >= DOC.versions.length - 1;
+  $("#doc-enregistrer").disabled = !m;           // à jour : « Enregistrer » grisé
+  const ed = editeur();
+  $("#doc-annuler").disabled = !(ed && ed.peutAnnuler()) && i <= 0;
+  $("#doc-retablir").disabled = !(ed && ed.peutRetablir()) && (i >= DOC.versions.length - 1 || !!(ed && ed.enAttente()));
   try {
     localStorage.setItem("mixeur.travail", JSON.stringify({doc: DOC.id, original: DOC.original, modifie: m,
       reglages: reglages(), reference: REGLAGES_ENREGISTRES}));
   } catch (e) {}
 }
-setInterval(majDoc, 800);
+setInterval(majDoc, 300);                        // assez souvent pour que « Enregistrer » s'allume dès un changement
 async function versionVoisine(sens) {
   if (!DOC) return;
   const i = DOC.versions.indexOf(DOC.courante) + sens;
@@ -125,6 +153,7 @@ async function versionVoisine(sens) {
 }
 async function enregistrer(nouvelle) {
   if (!DOC) return statut("Chargez d'abord un morceau.", "err");
+  if (!nouvelle && !estModifie()) return statut("Rien à enregistrer : le fichier est à jour.", "ok");   // Ctrl+S
   try {
     if (!(await appliqueEnAttente())) return;
     const r = await api("/api/doc/enregistrer", {doc: DOC.id, reglages: reglages(), nouvelle});
@@ -145,10 +174,25 @@ function afficheMorceau() {
 }
 $("#doc-enregistrer").addEventListener("click", () => enregistrer(false));
 $("#doc-version").addEventListener("click", () => enregistrer(true));
-$("#doc-annuler").addEventListener("click", () => versionVoisine(-1));
-$("#doc-retablir").addEventListener("click", () => versionVoisine(1));
+// Annuler / Rétablir, seuls boutons de ce genre de la page : d'abord ce qui se fait dans l'onglet ouvert, un pas
+// à la fois (réglages du Mixage, retouches pas encore appliquées du Montage ou des Événements), puis les versions du document.
+const editeur = () => ONGLET === "montage" ? MT : ONGLET === "texte" ? TX : REG;
+function annulerRetablir(sens) {
+  if (!DOC) return;
+  const ed = editeur();
+  if (ed && (sens < 0 ? ed.peutAnnuler() : ed.peutRetablir())) { sens < 0 ? ed.annuler() : ed.retablir(); return majDoc(); }
+  if (sens > 0 && ed && ed.enAttente()) return;     // retouches en cours : les versions suivantes seraient perdues
+  versionVoisine(sens);
+}
+$("#doc-annuler").addEventListener("click", () => annulerRetablir(-1));
+$("#doc-retablir").addEventListener("click", () => annulerRetablir(1));
 document.addEventListener("keydown", e => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); enregistrer(false); }
+  const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
+  if (c && k === "s") { e.preventDefault(); enregistrer(false); return; }
+  const el = document.activeElement;              // un champ de saisie garde son propre Ctrl+Z (pas un curseur)
+  if (/INPUT|SELECT|TEXTAREA/.test(el.tagName) && el.type !== "range") return;
+  if (c && k === "z" && !e.shiftKey) { e.preventDefault(); annulerRetablir(-1); }
+  else if (c && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); annulerRetablir(1); }
 });
 window.addEventListener("beforeunload", e => { if (estModifie()) { e.preventDefault(); e.returnValue = ""; } });
 
@@ -164,7 +208,7 @@ async function onglet(nom) {
   }
   document.querySelectorAll(".mixage-seul").forEach(b => b.hidden = nom !== "mixage");
   if (MORCEAU && avant) {
-    TR.nouveauMorceau(nom === "montage" ? MT.plan() : MORCEAU);
+    TR.nouveauContenu(nom === "montage" ? MT.plan() : MORCEAU);
     if (!/appliqu/.test(st.textContent))
       statut(nom === "montage" ? "Montage : la barre de transport joue maintenant le montage (▶ pour l'écouter)."
                                : "La barre de transport joue maintenant le document.");
@@ -177,19 +221,21 @@ $("#onglet-mixage").addEventListener("click", () => onglet("mixage"));
 $("#onglet-montage").addEventListener("click", () => onglet("montage"));
 $("#onglet-texte").addEventListener("click", () => onglet("texte"));
 
+// choisir un morceau dans la liste l'ouvre aussitôt ; si on renonce (ou en cas d'échec), la liste revient au document en cours
 async function charger() {
   const f = $("#fichier").value; if (!f) return;
-  if (estModifie() && !confirm("Le document en cours a des modifications non enregistrées. Les abandonner pour charger ce morceau ?")) return;
+  if (estModifie() && !confirm("Le document en cours a des modifications non enregistrées. Les abandonner pour charger ce morceau ?"))
+    return afficheMorceau();
   occupe(true); statut("Lecture du morceau…");
   try {
     let r;
     try { r = await api("/api/doc/ouvrir", {fichier: f}); }
-    catch (e) { throw e.message === "introuvable" ? new Error("Le mixeur qui tourne est une ancienne version : cliquez sur « Quitter », relancez-le par le raccourci du bureau, puis Ctrl+F5.") : e; }
+    catch (e) { throw e.message === "introuvable" ? new Error(ANCIENNE_VERSION) : e; }
     appliqueDoc(r, {});
     try { localStorage.setItem("mixeur.fichier", f); } catch (e) {}
     statut(ONGLET === "montage" ? "Morceau chargé. Montez ses mesures, puis ▶ pour écouter le montage."
                                 : "Morceau chargé. ▶ (ou la barre d'espace) pour écouter ; réglez les pistes pendant l'écoute.", "ok");
-  } catch (e) { statut(e.message, "err"); }
+  } catch (e) { statut(e.message, "err"); afficheMorceau(); }
   occupe(false);
 }
 async function rendu(cible) {
@@ -222,17 +268,33 @@ async function listeFichiers() {
   return fichiers;
 }
 
-$("#charger").addEventListener("click", charger);
+$("#fichier").addEventListener("change", charger);
 $("#mp3").addEventListener("click", () => rendu("mp3"));
 $("#wav").addEventListener("click", () => rendu("wav"));
 $("#vider").addEventListener("click", async () => { try { await api("/api/vider_cache", {}); statut("Cache vidé.", "ok"); cache(); } catch (e) { statut(e.message, "err"); } });
-$("#quitter").addEventListener("click", async () => {
-  if (estModifie() && !confirm("Des modifications ne sont pas enregistrées (elles seront proposées à la reprise). Quitter quand même ?")) return;
-  try { await api("/api/quitter", {}); } catch (e) {} occupe(true); statut("Mixeur arrêté. Vous pouvez fermer cet onglet.");
-});
+
+// Présence : le mixeur s'arrête tout seul une dizaine de secondes après la fermeture du dernier onglet
+// (plus de bouton « Quitter ») ; un rechargement de la page (F5) ne l'arrête pas.
+const PAGE_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+const presence = () => fetch("/api/presence", {method: "POST", headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({page: PAGE_ID})}).catch(() => {});
+presence(); setInterval(presence, 20000);
+window.addEventListener("pageshow", e => { if (e.persisted) presence(); });
+window.addEventListener("pagehide", () =>
+  navigator.sendBeacon("/api/presence", new Blob([JSON.stringify({page: PAGE_ID, fin: true})], {type: "application/json"})));
+
+// numéro de version (fichier VERSION.txt) ; un serveur lancé avant une mise à jour est signalé
+async function verifieVersion() {
+  try {
+    const v = await api("/api/version");
+    $("#version").textContent = "v" + v.version;
+    return v.version === v.fichier;
+  } catch (e) { return false; }                     // serveur trop ancien pour connaître /api/version
+}
 
 (async () => {
   try {
+    const aJour = await verifieVersion();
     SONS = await api("/api/sons");
     const fichiers = await listeFichiers();
     let dernier = null, mode = null, travail = null;
@@ -245,7 +307,8 @@ $("#quitter").addEventListener("click", async () => {
     if (demande && fichiers.some(f => f.chemin === demande)) dernier = demande;
     if (q.get("onglet")) mode = q.get("onglet");                              // ?onglet=montage
     if (mode === "montage" || mode === "texte") await onglet(mode);
-    statut(`${fichiers.length} morceaux trouvés · ${SONS.gu.length} sons GeneralUser · ${SONS.sf.length} sons sfizz.`);
+    statut(`${fichiers.length} morceaux trouvés · ${SONS.gu.filter(s => !s.masque).length} sons GeneralUser · ${SONS.sf.length} sons sfizz.`);
+    if (!aJour) return statut(ANCIENNE_VERSION, "err");
     cache();
     // un travail non enregistré est proposé à la reprise
     if (travail && travail.modifie && !demande) {

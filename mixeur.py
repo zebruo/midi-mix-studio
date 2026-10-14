@@ -32,6 +32,17 @@ import travail  # noqa: E402      (documents de travail : versions, enregistreme
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(ICI, "config.json"), encoding="utf-8"))
+
+
+def lit_version():
+    """Numéro de version de l'application (fichier VERSION.txt, MAJEUR.MINEUR.CORRECTIF)."""
+    try:
+        return open(os.path.join(ICI, "VERSION.txt"), encoding="utf-8-sig").read().strip()   # -sig : BOM du Bloc-notes
+    except OSError:
+        return "?"
+
+
+VERSION = lit_version()          # lu au lancement : s'il diffère du fichier, le serveur qui tourne est ancien
 PAGE = os.path.join(ICI, "page")
 CACHE = os.path.join(ICI, "cache")
 PISTES = os.path.join(CACHE, "pistes")
@@ -69,14 +80,20 @@ def presets_sf2(chemin):
 def catalogue():
     gu = []
     for banque, prog, nom in presets_sf2(CONFIG["generaluser"]):
+        # batteries : le rendu passe tout seul la piste sur le canal 10 (voir piste_seule), donc un kit va sur n'importe
+        # quelle piste ; la banque 120 répète les kits de la banque 128 : masquée dans la liste, gardée pour les anciens réglages
         if banque == 128:
-            groupe, libelle = "Batteries (canal 10)", f"Batterie {nom}"
+            groupe, libelle = "Batteries", f"Batterie {nom}"
+        elif banque == 120:
+            kit = re.sub(r"(?i)\s*kit$", "", nom)
+            gu.append({"id": f"gu:{banque}:{prog}", "groupe": "Batteries", "nom": f"Batterie {kit}", "masque": True})
+            continue
         elif banque == 0:
             groupe, libelle = FAMILLES[prog // 8], f"{prog} {GM_FR[prog]}"
-        else:
-            groupe, libelle = "Variantes", f"{prog} {GM_FR[prog]} — {nom} (banque {banque})"
+        else:                                       # son propre à GeneralUser : son nom, puis sa famille General MIDI
+            groupe, libelle = "Variantes", f"{nom} ({FAMILLES[prog // 8].lower()}, banque {banque})"
         gu.append({"id": f"gu:{banque}:{prog}", "groupe": groupe, "nom": libelle})
-    ordre = {g: i for i, g in enumerate(FAMILLES + ["Variantes", "Batteries (canal 10)"])}
+    ordre = {g: i for i, g in enumerate(FAMILLES + ["Variantes", "Batteries"])}
     gu.sort(key=lambda s: (ordre[s["groupe"]], s["id"].split(":")[1] != "0", int(s["id"].split(":")[2])))
     sf = []
     base = CONFIG["dossier_sfz"]
@@ -809,6 +826,10 @@ class Console(http.server.BaseHTTPRequestHandler):
         if m and os.path.isfile(os.path.join(PAGE, *m.group(1).split("/"))):
             type_ = "text/css" if url.endswith(".css") else "text/javascript"
             return self.fichier(os.path.join(PAGE, *m.group(1).split("/")), type_ + "; charset=utf-8")
+        if url in ("/favicon.ico", "/icone.png"):          # icône de l'application (onglet du navigateur)
+            return self.fichier(os.path.join(PAGE, url[1:]), "image/x-icon" if url.endswith(".ico") else "image/png")
+        if url == "/api/version":
+            return self.envoie(200, {"version": VERSION, "fichier": lit_version()})
         if url == "/api/fichiers":
             return self.envoie(200, liste_fichiers())
         if url == "/api/sons":
@@ -872,10 +893,9 @@ class Console(http.server.BaseHTTPRequestHandler):
                         shutil.rmtree(d)
                         os.makedirs(d)
                 return self.envoie(200, {"mo": 0})
-            if url == "/api/quitter":
-                self.envoie(200, {"ok": True})
-                threading.Thread(target=SERVEUR.shutdown, daemon=True).start()
-                return
+            if url == "/api/presence":
+                PRESENCE.signe(str(req.get("page", "")), bool(req.get("fin")))
+                return self.envoie(200, {"ok": True})
             self.envoie(404, {"erreur": "introuvable"})
         except subprocess.CalledProcessError as e:
             msg = (e.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-1:] or ["erreur du moteur"]
@@ -884,6 +904,49 @@ class Console(http.server.BaseHTTPRequestHandler):
             self.envoie(500, {"erreur": "Le rendu a pris trop de temps et a été arrêté."})
         except Exception as e:  # noqa: BLE001 — message lisible pour la console
             self.envoie(400, {"erreur": str(e)})
+
+
+class Presence:
+    """Arrêt automatique : chaque onglet ouvert sur la console fait signe toutes les 20 s (/api/presence) et dit
+    « fin » en se fermant. Sans aucun onglet pendant DELAI secondes (le temps qu'un F5 recharge la page), le
+    serveur s'arrête, après le calcul ou l'export en cours. Un onglet muet depuis OUBLI secondes (navigateur
+    fermé brutalement) ne compte plus ; c'est large car un onglet en arrière-plan ne fait signe qu'une fois par minute."""
+    DELAI, OUBLI, PREMIER = 10, 180, 120
+
+    def __init__(self):
+        self.pages, self.verrou, self.depuis = {}, threading.Lock(), time.monotonic()
+
+    def signe(self, page, fin):
+        with self.verrou:
+            if fin:
+                self.pages.pop(page, None)
+            elif page:
+                self.pages[page] = time.monotonic()
+            if not self.pages:
+                self.depuis = time.monotonic()
+
+    def surveille(self):
+        attente = self.PREMIER                     # au lancement, le navigateur peut mettre un moment à s'ouvrir
+        while True:
+            time.sleep(2)
+            with self.verrou:
+                now = time.monotonic()
+                for p, t in list(self.pages.items()):
+                    if now - t > self.OUBLI:
+                        del self.pages[p]
+                        if not self.pages:
+                            self.depuis = now
+                if self.pages:
+                    attente = self.DELAI
+                    continue
+                if now - self.depuis < attente:
+                    continue
+            with VERROU:                           # attend la fin d'un rendu ou d'un export
+                threading.Thread(target=SERVEUR.shutdown, daemon=True).start()
+            return
+
+
+PRESENCE = Presence()
 
 
 def main():
@@ -899,6 +962,7 @@ def main():
     SERVEUR = http.server.ThreadingHTTPServer(("127.0.0.1", port), Console)
     if "--sans-navigateur" not in sys.argv:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    threading.Thread(target=PRESENCE.surveille, daemon=True).start()
     SERVEUR.serve_forever()
 
 

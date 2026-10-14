@@ -16,5 +16,11 @@ async function api(url, corps) {
   if (!r.ok) throw new Error(j.erreur || "erreur");
   return j;
 }
-// pendant un calcul, les boutons sont grisés (sauf « Quitter » et les touches de la barre de transport)
-const occupe = oui => document.querySelectorAll("button").forEach(b => { if (b.id !== "quitter" && !b.classList.contains("touche")) b.disabled = oui; });
+// pendant un calcul, les boutons et la liste des morceaux sont grisés (sauf les touches de la barre de transport)
+const occupe = oui => {
+  document.body.classList.toggle("occupe", oui);
+  document.querySelectorAll("button").forEach(b => { if (!b.classList.contains("touche")) b.disabled = oui; });
+  $("#fichier").disabled = oui;
+};
+const ANCIENNE_VERSION = "Le mixeur qui tourne est une ancienne version : fermez cet onglet, attendez une quinzaine de secondes, "
+  + "puis relancez-le par le raccourci du bureau.";

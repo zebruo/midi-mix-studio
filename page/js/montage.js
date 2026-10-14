@@ -143,7 +143,11 @@ const MT = (() => {
   }
   function annuler() { if (!hist.length) return majInfo("rien à annuler"); futur.push(barres); barres = hist.pop(); apres(sel && sel.a <= barres.length ? sel : null); }
   function retablir() { if (!futur.length) return majInfo("rien à rétablir"); hist.push(barres); barres = futur.pop(); apres(sel && sel.a <= barres.length ? sel : null); }
-  function reinit() { modifie(() => { barres = plage(1, nbSrc()); }, null); }
+  function reinit() {                            // « Abandonner le montage » (↶ Annuler le rétablit)
+    if (!enAttente()) return majInfo("aucun montage en cours à abandonner");
+    if (!confirm("Abandonner le montage pas encore appliqué et revenir au document tel qu'il était en arrivant dans l'onglet ?")) return;
+    modifie(() => { barres = plage(1, nbSrc()); }, null);
+  }
 
   // ───── dessin des bandes
   function prepare(c, h) {
@@ -344,9 +348,11 @@ const MT = (() => {
     construitVue();
     cibles = [];
     $("#mt-edition").hidden = !(vue && vue.edition);
+    $("#mt-detail-fermer").hidden = !vue;
+    $("#mt-suivre").hidden = !(vue && vue.edition);
+    cD.parentElement.hidden = !vue;                 // détail fermé : pas de cadre noir vide
     cD.classList.toggle("edition", !!(vue && vue.edition));
     if (!vue) {
-      prepare(cD, 30);
       titre.textContent = "Détail : sélectionnez une ou plusieurs mesures (montage ou original) pour voir leurs notes.";
       return;
     }
@@ -569,27 +575,52 @@ const MT = (() => {
   cS.addEventListener("pointerup", () => { gesteSrc = null; dessineTout(); });
 
   // ───── boutons et raccourcis
-  const actions = {"mt-annuler": annuler, "mt-retablir": retablir, "mt-couper": couper, "mt-copier": copier,
+  // (annuler / rétablir : boutons du haut de la page et Ctrl+Z / Ctrl+Y, voir app.js)
+  const actions = {"mt-couper": couper, "mt-copier": copier,
     "mt-coller-avant": () => coller(false), "mt-coller-apres": () => coller(true), "mt-dupliquer": dupliquer,
     "mt-supprimer": supprimer, "mt-garder": garder, "mt-reinit": reinit};
   for (const [id, f] of Object.entries(actions)) $("#" + id).addEventListener("click", () => { if (MORCEAU) f(); });
+  // fermer le détail (piano-roll) = ne plus rien sélectionner
+  function fermeDetail() { sel = selSrc = null; focus = "mt"; dessineTout(); }
+  $("#mt-detail-fermer").addEventListener("click", fermeDetail);
+
+  // « Suivre la lecture » : pendant la lecture, quand la tête sort des mesures affichées, le détail tourne la page
+  // (même nombre de mesures ; la sélection du montage suit). Choix gardé dans ce navigateur.
+  let suivre = false;
+  try { suivre = localStorage.getItem("mixeur.suivre") === "1"; } catch (e) {}
+  $("#mt-suivre").setAttribute("aria-pressed", suivre);
+  $("#mt-suivre").addEventListener("click", e => {
+    suivre = !suivre; e.currentTarget.setAttribute("aria-pressed", suivre);
+    try { localStorage.setItem("mixeur.suivre", suivre ? "1" : "0"); } catch (e) {}
+    if (suivre) suitLecture();
+  });
+  // le bouton boucle du transport se pose sur les mesures sélectionnées du montage
+  TR.boucleSur(() => ONGLET === "montage" && sel && focus !== "src" ? sel : null);
+  function suitLecture() {
+    if (!suivre || !sel || focus === "src" || !vue || !vue.edition) return;
+    const m = Math.floor(TR.mesure() + 1e-6) + 1;          // mesure du montage sous la tête de lecture
+    const n = Math.min(sel.a - sel.de + 1, MAXD);
+    if (m < 1 || m > barres.length || (m >= sel.de && m < sel.de + n)) return;
+    let de = sel.de + Math.floor((m - sel.de) / n) * n;
+    const a = Math.min(barres.length, Math.max(1, de) + n - 1);
+    de = Math.max(1, a - n + 1);
+    sel = {de, a}; dessineTout();
+  }
   document.addEventListener("keydown", e => {
     if (ONGLET !== "montage" || !MORCEAU || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
     const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey, notes = focus === "detail" && vue && vue.edition;
     let f = null;
-    if (c && k === "z" && !e.shiftKey) f = annuler;
-    else if (c && (k === "y" || (k === "z" && e.shiftKey))) f = retablir;
-    else if (notes && c && k === "a") f = () => { vue.choix = new Set(vue.notes); dessineDetail(); };
+    if (notes && c && k === "a") f = () => { vue.choix = new Set(vue.notes); dessineDetail(); };
     else if (notes && (e.key === "Delete" || e.key === "Backspace")) f = supprimeNotes;
     else if (notes && e.key === "ArrowUp" && !c) f = () => transpose(e.shiftKey ? 12 : 1);
     else if (notes && e.key === "ArrowDown" && !c) f = () => transpose(e.shiftKey ? -12 : -1);
-    else if (notes && e.key === "Escape") f = () => { vue.choix.clear(); dessineDetail(); };
+    else if (notes && e.key === "Escape" && vue.choix.size) f = () => { vue.choix.clear(); dessineDetail(); };
     else if (c && k === "x") f = couper;
     else if (c && k === "c") f = copier;
     else if (c && k === "v") f = () => coller(e.shiftKey);
     else if (c && k === "d") f = dupliquer;
     else if (e.key === "Delete" || e.key === "Backspace") f = supprimer;
-    else if (e.key === "Escape") f = () => { sel = selSrc = null; dessineTout(); };
+    else if (e.key === "Escape") f = fermeDetail;
     if (f) { e.preventDefault(); f(); }
   });
 
@@ -604,6 +635,7 @@ const MT = (() => {
   // tête de lecture sur la bande du montage et dans le détail
   (function boucle() {
     if (ONGLET === "montage" && MORCEAU && !geste && !gesteD) {
+      if (!$("#lecteur").paused) suitLecture();
       dessineMontage();
       if (!$("#lecteur").paused) dessineDetail();
     }
@@ -611,5 +643,6 @@ const MT = (() => {
   })();
   window.addEventListener("resize", () => { if (ONGLET === "montage") dessineTout(); });
 
-  return {plan, segments: () => segments(), nouveauMorceau, dessineTout, enAttente, oublie};
+  return {plan, segments: () => segments(), nouveauMorceau, dessineTout, enAttente, oublie,
+    annuler, retablir, peutAnnuler: () => hist.length > 0, peutRetablir: () => futur.length > 0};
 })();

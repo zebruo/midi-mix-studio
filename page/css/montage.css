@@ -19,6 +19,13 @@
 .mt-bande{height:52px;cursor:pointer;touch-action:none}
 #mt-grille{cursor:default}
 .mt-detail{display:flex;flex-direction:column;gap:6px}
+.mt-detail-tete{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.mt-detail-tete button{background:none;border:1px solid var(--line);border-radius:4px;padding:3px 7px;font-size:14px;line-height:1;color:var(--amber)}
+.mt-detail-tete button:hover{color:#ffc56a;border-color:var(--amber)}
+.mt-detail-boutons{display:flex;gap:6px;flex-shrink:0}
+#mt-suivre{color:var(--muted)}
+#mt-suivre svg{display:block;width:14px;height:14px;fill:currentColor}
+#mt-suivre[aria-pressed=true]{color:var(--amber);border-color:var(--amber)}
 .mt-detail-titre{font:12.5px var(--mono);color:var(--muted)}
 .mt-detail-titre b{color:var(--text);font-weight:600}
 .mt-edition{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
@@ -27,6 +34,7 @@
 .mt-edition input[type=range]{width:110px}
 .mt-notes-info{font:12px var(--mono);color:var(--text);min-width:200px}
 .mt-detail-zone canvas.edition{cursor:crosshair}
+.mt-detail-zone[hidden]{display:none}
 .mt-detail-zone{position:relative;background:#141619;border:1px solid #000;border-radius:4px;padding:8px}
 .mt-detail-zone canvas{display:block;width:100%}
 .mt-bulle{position:absolute;pointer-events:none;background:#0a0b0c;border:1px solid var(--line);border-radius:3px;

@@ -1,0 +1,22 @@
+/* Mixeur MIDI — choix du son d'une piste : bouton dans le tableau, fenêtre de recherche (sons.js) */
+.son-choix{display:flex;align-items:center;gap:8px;width:100%;min-width:260px;max-width:340px;padding:5px 8px;font-size:12.5px;text-align:left}
+.son-choix .moteur{flex-shrink:0;font:600 10px var(--display);letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border-radius:3px}
+tr.gu .son-choix .moteur,.choix-groupe.gu{color:var(--amber)}
+tr.sf .son-choix .moteur,.choix-groupe.sf{color:var(--teal)}
+tr.gu .son-choix .moteur{background:color-mix(in srgb,var(--amber) 18%,transparent)}
+tr.sf .son-choix .moteur{background:color-mix(in srgb,var(--teal) 18%,transparent)}
+.son-choix .son-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.son-choix .fleche{flex-shrink:0;color:var(--muted)}
+
+.choix-son{position:fixed;z-index:20;width:400px;max-width:calc(100vw - 16px);height:380px;display:flex;flex-direction:column;
+  background:var(--deck);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px #000a;overflow:hidden}
+.choix-son[hidden]{display:none}
+.choix-champ{margin:8px;padding:6px 9px;font:500 13px var(--body);color:var(--text);background:var(--rail);border:1px solid var(--line);border-radius:4px}
+.choix-champ:focus{outline:2px solid var(--amber);outline-offset:0}
+.choix-liste{flex:1;overflow-y:auto;padding:0 0 6px}
+.choix-groupe{padding:8px 12px 3px;font:600 11px var(--display);letter-spacing:.1em;text-transform:uppercase}
+.choix-son-ligne{padding:4px 12px 4px 20px;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.choix-son-ligne.courant{font-weight:600}
+.choix-son-ligne.courant::before{content:"✓ ";color:var(--amber);margin-left:-12px}
+.choix-son-ligne.actif{background:var(--rail)}
+.choix-vide{padding:16px 12px;color:var(--muted);font-size:12.5px}

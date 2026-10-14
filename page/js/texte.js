@@ -1,4 +1,4 @@
-// Mixeur MIDI — onglet Texte : le fichier MIDI en texte commenté (format de tools\midi-texte\midi_texte.py),
+// Mixeur MIDI — onglet « Événements » (fichiers texte.*) : le fichier MIDI en texte commenté (format de tools\midi-texte\midi_texte.py),
 // à voir et corriger en tableau (filtres, cellules modifiables, actions groupées) ou en texte brut,
 // vérifié en continu par le serveur, puis enregistré en nouveau .mid (jamais d'écrasement).
 // (script classique : les variables et fonctions sont partagées entre les fichiers de la page)
@@ -432,8 +432,6 @@ const TX = (() => {
   }
   $("#tx-vue-tableau").addEventListener("click", () => choisitVue("tableau"));
   $("#tx-vue-brut").addEventListener("click", () => choisitVue("brut"));
-  $("#tx-annuler").addEventListener("click", () => { if (vue === "brut") litBrut(); annuler(); });
-  $("#tx-retablir").addEventListener("click", retablir);
 
   // ───── chargement du texte du document
   function remplitPistes() {
@@ -452,7 +450,7 @@ const TX = (() => {
       let brouillon = null; try { brouillon = sansBrouillon ? null : localStorage.getItem(cle()); } catch (e) {}
       lignes = (brouillon ?? original).split("\n");
       analyse(); remplitPistes(); afficheErreurs();
-      if (brouillon) statut("Texte : corrections en cours reprises (pas encore appliquées au document).", "ok");
+      if (brouillon) statut("Événements : corrections en cours reprises (pas encore appliquées au document).", "ok");
       vue === "brut" ? remplitBrut() : dessine();
       verifier();
     } catch (e) { $("#tx-etat").textContent = ""; statut(e.message, "err"); }
@@ -463,14 +461,14 @@ const TX = (() => {
     charge(true);
   });
 
-  document.addEventListener("keydown", e => {
-    if (ONGLET !== "texte" || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
-    if (c && k === "z" && !e.shiftKey) { e.preventDefault(); annuler(); }
-    else if (c && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); retablir(); }
-  });
+  // annuler / rétablir : boutons du haut de la page et Ctrl+Z / Ctrl+Y (app.js) ; le texte brut tapé compte d'abord
+  const brutChange = () => vue === "brut" && $("#tx-zone").value !== lignes.join("\n");
 
   return {
+    annuler() { if (vue === "brut") litBrut(); annuler(); },
+    retablir,
+    peutAnnuler: () => hist.length > 0 || brutChange(),
+    peutRetablir: () => futur.length > 0 && !brutChange(),
     nouveauMorceau() { chemin = null; lignes = []; infos = []; original = ""; $("#tx-lignes").innerHTML = ""; if (ONGLET === "texte") charge(); },
     affiche() { if (MORCEAU && chemin !== MORCEAU.chemin) charge(); else if (vue === "brut") remplitBrut(true); else dessine(); },
     // corrections pas encore appliquées au document

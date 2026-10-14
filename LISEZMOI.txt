@@ -3,13 +3,15 @@ MIXEUR MIDI
 
 Lancer   : raccourci « Mixeur MIDI » sur le bureau (ouvre la console dans le navigateur,
            à l'adresse http://localhost:8765, accessible seulement depuis ce PC).
-Arrêter  : bouton « Quitter » de la console (ou fermer simplement : le mixeur reste en
-           arrière-plan et le raccourci rouvre la même console).
+Arrêter  : fermer simplement l'onglet. Le mixeur s'arrête tout seul une dizaine de
+           secondes après la fermeture du dernier onglet (un rechargement F5 ne l'arrête
+           pas ; un calcul ou un export en cours est d'abord terminé). Pour relancer
+           après un arrêt, attendre ces quelques secondes puis utiliser le raccourci.
 
 Le document et l'enregistrement
 -------------------------------
-- « Charger » ouvre le morceau dans une copie de travail : les trois onglets (Mixage,
-  Montage, Texte) travaillent sur ce même document. Rien n'est écrit à côté du morceau
+- Choisir un morceau dans la liste l'ouvre aussitôt, dans une copie de travail : les trois onglets (Mixage,
+  Montage, Événements) travaillent sur ce même document. Rien n'est écrit à côté du morceau
   avant « Enregistrer ».
 - En haut : « ● modifié » ou « ✓ enregistré », le fichier (original ou copie) et la version.
 - « Enregistrer » (ou Ctrl+S) :
@@ -18,21 +20,28 @@ Le document et l'enregistrement
       avec un nom automatique (musique_2008.mid → musique_2008_v2.mid, Garmisch_2008_v2.mid →
       Garmisch_2008_v3.mid, toujours le premier numéro libre), avec ses réglages ; les
       « Enregistrer » suivants mettent à jour cette copie. L'original n'est jamais remplacé.
-- « Nouvelle version » : enregistre dans une nouvelle copie (numéro suivant).
-- Un montage ou des corrections du texte sont appliqués au document en quittant leur onglet
-  (ou avec « Enregistrer ») ; chaque application crée une version : « ↶ version » / « ↷ »
-  reviennent en arrière ou en avant. Un texte avec des erreurs empêche de quitter l'onglet.
+- « Enregistrer » est grisé quand le fichier est à jour.
+- « Enregistrer une copie » : enregistre dans une nouvelle copie (numéro suivant).
+- Un montage ou des corrections d'événements sont appliqués au document en quittant leur onglet
+  (ou avec « Enregistrer ») ; chaque application crée une version. « ↶ Annuler » /
+  « ↷ Rétablir » (Ctrl+Z / Ctrl+Y), seuls boutons de ce genre : ils défont d'abord, un pas
+  à la fois, ce qui a été fait dans l'onglet ouvert (réglages du Mixage : son, volume, pan,
+  muet/solo, écho, volume général, fondu ; retouches en cours du Montage ou des Événements),
+  puis reviennent aux versions précédentes du document. Des erreurs dans les Événements
+  empêchent de quitter l'onglet.
 - Si la page est fermée sans enregistrer, le travail est proposé à la reprise au prochain
   lancement (les travaux de plus de 7 jours sont effacés).
 
 Onglet « Mixage »
 -----------------
-1. Choisir un morceau (.mid) dans la liste, puis « Charger ».
+1. Choisir un morceau (.mid) dans la liste : il s'ouvre aussitôt.
    La console reprend automatiquement le dernier morceau utilisé.
-2. Pour chaque piste : moteur (FluidSynth = GeneralUser, intimiste ; sfizz = lyrique),
-   son, volume (70 = niveau d'origine), position gauche/droite, M = muet, S = solo.
+2. Pour chaque piste : son, volume (70 = niveau d'origine), position gauche/droite,
+   M = muet, S = solo. Un clic sur le son ouvre une liste avec recherche, qui contient les
+   sons des deux moteurs (GU = FluidSynth + GeneralUser, intimiste ; sfizz = lyrique) :
+   choisir un son règle aussi le moteur. Recherche sans accents, en français ou en anglais
+   (cello = violoncelle, cor = horn…) ; ↑/↓ puis Entrée, Échap pour fermer.
    « Son d'origine » garde les instruments prévus dans le fichier.
-   « Chercher un son » filtre toutes les listes (ex. cello, flûte, piano).
    Colonne « Niveau » : vumètre de chaque piste pendant l'écoute (avec son volume ; muet et
    solo agissent tout de suite).
    Un canal qui change d'instrument en cours de morceau (ex. clarinette puis piano sur le
@@ -57,8 +66,11 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
   mesures à copier. Bande « Montage » : glisser pour sélectionner (Maj+clic pour étendre),
   glisser une sélection pour la déplacer, double-clic pour s'y placer à l'écoute.
 - Couper (Ctrl+X), Copier (Ctrl+C), Coller avant (Ctrl+V) / après (Ctrl+Maj+V),
-  Dupliquer (Ctrl+D), Supprimer (Suppr), Garder la sélection, Annuler (Ctrl+Z),
-  Rétablir (Ctrl+Y), Repartir de l'original.
+  Dupliquer (Ctrl+D), Supprimer (Suppr), Garder la sélection ; « Abandonner le montage »
+  revient au document tel qu'il était en arrivant dans l'onglet (↶ Annuler le rétablit).
+  Annuler / Rétablir : boutons du haut de la page (Ctrl+Z / Ctrl+Y).
+- Boucle du transport (bouton ou touche B) avec des mesures du montage sélectionnées :
+  L et R se posent sur ces mesures.
 - La grille montre quelles pistes jouent dans chaque mesure (couleur = moteur, intensité =
   nombre de notes).
 - Détail : les notes des mesures sélectionnées (16 au plus), piste par piste ; survol = nom de
@@ -66,13 +78,15 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
   notes se modifient (cette copie de la mesure seulement, marquée ✎) : clic = choisir,
   glisser = déplacer, bord droit = durée, double-clic = ajouter, Suppr = supprimer,
   ↑/↓ = demi-ton, Maj+↑/↓ = octave ; vélocité par le curseur ; « Notes d'origine ».
+  En haut à droite du détail : « suivre la lecture » (tête de lecture + flèche ; pendant
+  l'écoute, le détail passe aux mesures suivantes) et ✕ pour le fermer (ou Échap).
 - ▶ : aperçu rapide du montage ; chaque modification se met à jour toute seule.
 - En quittant l'onglet (ou avec « Enregistrer »), le montage est appliqué au document avec
   des raccords propres (notes qui résonnent au plus un temps, attaques en avance recalées,
   instruments, tempo et chiffrage rétablis, pédale relâchée).
 
-Onglet « Texte » (le document en texte commenté)
-------------------------------------------------
+Onglet « Événements » (liste des événements MIDI, en tableau ou en texte commenté)
+---------------------------------------------------------------------------------
 - Tableau : une ligne par événement (position mesure.temps.tick, « ≈ 3.1 » = attaque un peu
   en avance, piste, canal, note, durée, vélocité, instrument, contrôleur, tempo…), dans
   l'ordre du temps ; filtres par piste, mesures, type, recherche. Chaque cellule se modifie ;
@@ -83,23 +97,28 @@ Onglet « Texte » (le document en texte commenté)
   fin de note inchangée), supprimer.
 - Texte brut : le texte complet (mode d'emploi en tête), aller à une ligne ou une mesure,
   rechercher / remplacer (Suivant, Remplacer, Tout remplacer ; ex. « tempo 120 » → « tempo 100 »).
-- Vérification continue (erreurs en haut, clic = aller à la ligne), Annuler / Rétablir,
-  « Abandonner mes corrections ». Les corrections sont appliquées au document en quittant
+- Vérification continue (erreurs en haut, clic = aller à la ligne), « Abandonner mes
+  corrections » ; Annuler / Rétablir : boutons du haut de la page. Les corrections sont appliquées au document en quittant
   l'onglet (ou avec « Enregistrer »).
 
 Fichiers
 --------
+VERSION.txt    numéro de version (affiché en haut de la console) : MAJEUR.MINEUR.CORRECTIF
+               — correctif +1 pour une correction, mineur +1 pour une nouvelle fonction,
+               majeur +1 si d'anciens fichiers ou réglages ne marchent plus. Si le mixeur
+               qui tourne n'a pas le même numéro que ce fichier, la console demande de le relancer.
 mixeur.py      le programme (serveur, rendu, mixage)
 travail.py     les documents de travail (versions, enregistrement, noms automatiques)
 montage.py     le banc de montage (découpe en mesures, raccords, aperçu audio)
-midi_texte.py  .mid ⇄ texte commenté (onglet Texte) ; marche aussi seul, dans le terminal
+midi_texte.py  .mid ⇄ texte commenté (onglet Événements) ; marche aussi seul, dans le terminal
                de VS Code :
                  python "<dossier du mixeur>\midi_texte.py" "morceau.mid"
                    → morceau.mid.txt (jamais d'écrasement : morceau_2.mid.txt…)
                  python "<dossier du mixeur>\midi_texte.py" "morceau.mid.txt"
                    → morceau_texte.mid (puis _texte_2…) ; fautes signalées par n° de ligne
-page\          la console : index.html, css\ (common, console, transport, montage, texte),
-               js\ (outils, pistes, transport, montage, texte, app)
+page\          la console : favicon.ico et icone.png (icône de l'application, aussi celle du
+               raccourci du bureau), index.html, css\ (common, console, sons, transport, montage,
+               texte), js\ (outils, sons, pistes, transport, montage, texte, app)
 config.json    chemins des moteurs et des banques, dossiers où chercher les morceaux
                (« racines »), taille maximale du cache, volumes de base des banques sfizz,
                nombre de rendus simultanés ; propre à ce PC, non versionné
