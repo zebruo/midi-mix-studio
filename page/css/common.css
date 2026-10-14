@@ -19,7 +19,8 @@ button{cursor:pointer}
 button.ico{display:inline-flex;align-items:center;justify-content:center}   /* bouton icône (SVG fait main, 16 px) */
 button.ico svg{display:block;width:16px;height:16px;fill:currentColor}
 button:disabled{opacity:.45;cursor:default}
-body.occupe button:disabled{cursor:progress}   /* curseur d'attente seulement pendant un calcul (occupe) */
+/* pendant un calcul (occupe(), outils.js) : boutons et liste des morceaux grisés, curseur d'attente dessus seulement */
+body.occupe button:not(.touche),body.occupe #fichier{opacity:.45;cursor:progress}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 input[type=range]{width:120px;accent-color:var(--amber)}
 .val{font:12px var(--mono);color:var(--muted);width:42px;text-align:right;font-variant-numeric:tabular-nums}

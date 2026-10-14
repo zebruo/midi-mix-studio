@@ -33,6 +33,12 @@ def _tous(mid):
         yield from _absolus(piste)
 
 
+def notes(mid):
+    """Toutes les notes du fichier, piste après piste : (début, fin, note_on, note_off), en ticks."""
+    for piste in mid.tracks:
+        yield from _notes(list(_absolus(piste)))[0]
+
+
 def bornes_mesures(mid):
     """Ticks des barres de mesure : début de la mesure 1, 2, … et fin de la dernière (n + 1 valeurs)."""
     tpb = mid.ticks_per_beat
@@ -90,12 +96,11 @@ def instruments_par_canal(mid):
     joués, dans l'ordre où ils apparaissent]}. Le mixeur en fait une ligne par instrument, rendue avec son
     instrument fixé dès le début : une note qui attaque un peu avant le changement ne sonne plus avec l'ancien."""
     chg, av, vus = programmes(mid), mid.ticks_per_beat // 8, {}
-    for piste in mid.tracks:
-        for d, _, on, _ in _notes(list(_absolus(piste)))[0]:
-            if on.channel != 9:
-                p = programme_a(chg.get(on.channel, []), d, av)
-                vus.setdefault(on.channel, {}).setdefault(p, d)
-                vus[on.channel][p] = min(vus[on.channel][p], d)
+    for d, _, on, _ in notes(mid):
+        if on.channel != 9:
+            p = programme_a(chg.get(on.channel, []), d, av)
+            vus.setdefault(on.channel, {}).setdefault(p, d)
+            vus[on.channel][p] = min(vus[on.channel][p], d)
     return {c: sorted(v, key=v.get) for c, v in vus.items() if len(v) > 1 or len({p for _, p in chg.get(c, [])}) > 1}
 
 
@@ -108,19 +113,15 @@ def structure(mid):
     """Pour le banc de montage : temps de chaque barre de mesure et nombre de notes par mesure et par ligne."""
     bornes = bornes_mesures(mid)
     partages, chg, av = instruments_par_canal(mid), programmes(mid), mid.ticks_per_beat // 8
-    activite = {}
-    for piste in mid.tracks:
-        for d, _, on, _ in _notes(list(_absolus(piste)))[0]:
-            cle = cle_ligne(on.channel, programme_a(chg.get(on.channel, []), d, av), partages)
-            ligne = activite.setdefault(cle, [0] * (len(bornes) - 1))
-            ligne[min(len(bornes) - 2, max(0, _mesure_de(bornes, d + av)))] += 1
-    notes = []                                   # pour le détail d'une mesure : [canal, note, vélocité, début, fin] en ticks
-    for piste in mid.tracks:
-        for d, f, on, _ in _notes(list(_absolus(piste)))[0]:
-            notes.append([on.channel, on.note, on.velocity, d, f])
-    notes.sort(key=lambda x: x[3])
+    activite, liste = {}, []                     # liste : pour le détail d'une mesure, [canal, note, vélocité, début, fin]
+    for d, f, on, _ in notes(mid):
+        cle = cle_ligne(on.channel, programme_a(chg.get(on.channel, []), d, av), partages)
+        ligne = activite.setdefault(cle, [0] * (len(bornes) - 1))
+        ligne[min(len(bornes) - 2, max(0, _mesure_de(bornes, d + av)))] += 1
+        liste.append([on.channel, on.note, on.velocity, d, f])
+    liste.sort(key=lambda x: x[3])
     return {"secondes": [round(s, 6) for s in secondes(mid, bornes)], "bornes": bornes, "tpb": mid.ticks_per_beat,
-            "activite": activite, "notes": notes,
+            "activite": activite, "notes": liste,
             "programmes": {str(c): v for c, v in chg.items() if c in partages}}
 
 
@@ -136,8 +137,8 @@ def _mesure_de(bornes, tick):
 
 
 def normalise(segments, nb):
-    """Plages valides, les plages qui se suivent dans l'original étant réunies."""
-    """→ [(a, b, notes)] ; notes = None (notes de l'original) ou, pour une mesure retouchée (a == b),
+    """Plages valides, les plages qui se suivent dans l'original étant réunies.
+    → [(a, b, notes)] ; notes = None (notes de l'original) ou, pour une mesure retouchée (a == b),
     la liste complète de ses notes [canal, note, vélocité, début, fin] en ticks depuis la barre de la mesure."""
     res = []
     for s in segments:
@@ -162,10 +163,9 @@ def notes_de_mesure(mid, bornes=None):
     {mesure: [[canal, note, vélocité, début, fin], …]} en ticks depuis la barre de la mesure (comme la page)."""
     bornes = bornes or bornes_mesures(mid)
     avance, res = mid.ticks_per_beat // 8, {}
-    for piste in mid.tracks:
-        for d, f, on, _ in _notes(list(_absolus(piste)))[0]:
-            k = min(len(bornes) - 2, _mesure_de(bornes, d + avance)) + 1
-            res.setdefault(k, []).append([on.channel, on.note, on.velocity, d - bornes[k - 1], f - bornes[k - 1]])
+    for d, f, on, _ in notes(mid):
+        k = min(len(bornes) - 2, _mesure_de(bornes, d + avance)) + 1
+        res.setdefault(k, []).append([on.channel, on.note, on.velocity, d - bornes[k - 1], f - bornes[k - 1]])
     return res
 
 

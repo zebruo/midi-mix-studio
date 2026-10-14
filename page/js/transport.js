@@ -6,8 +6,9 @@ const TR = (() => {
   const a = $("#lecteur"), toile = $("#toile"), ligne = $("#ligne");
   let carte = [{t: 0, mesure: 0, bpm: 120, num: 4, den: 4}], duree = 0, L = 0, R = 0, boucle = false, depart = 0;
   let ctx = null, gain = null, an = [], pic = [-90, -90], picT = [0, 0], pret = false, aJouer = false;
-  let attente = false, reprise = 0, reprendre = false, relance = false;
-  let enCalcul = false;                 // premier calcul du mixage demandé par ▶ : la touche clignote   // pendant le chargement d'un nouveau mixage : où reprendre, et rejouer ?
+  let attente = false, reprise = 0, reprendre = false;  // pendant le chargement d'un nouveau mixage : où reprendre, et rejouer ?
+  let relance = false;                  // nouveauContenu : un nouveau calcul suivi de la lecture est déjà prévu
+  let enCalcul = false;                 // premier calcul du mixage demandé par ▶ : la touche clignote
   const noiresParMesure = s => s.num * 4 / s.den;
   const seg = t => carte.reduce((s, x) => x.t <= t ? x : s, carte[0]);
   const mesureA = t => { const s = seg(t); return s.mesure + (t - s.t) * s.bpm / 60 / noiresParMesure(s); };
@@ -148,7 +149,7 @@ const TR = (() => {
   $("#t-setR").addEventListener("click", () => poseLoc("R"));
   $("#t-vol").addEventListener("input", e => { const v = +e.target.value; $("#t-volv").textContent = v; if (gain) gain.gain.value = v / 100; else a.volume = v / 100; });
   document.addEventListener("keydown", e => {
-    if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && e.target.type !== "range") return;
+    if (saisieEnCours()) return;
     if (e.code === "Space") { e.preventDefault(); lecture(); }
     else if (e.key === "b" || e.key === "B") $("#t-boucle").click();
     else if (e.key === "Home") va(boucle ? L : 0);

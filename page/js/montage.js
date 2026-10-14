@@ -37,7 +37,6 @@ const MT = (() => {
     for (const x of liste) { const b = sb(x), d = res[res.length - 1]; if (d && d.b + 1 === b) d.b = b; else res.push({a: b, b}); }
     return res;
   }
-  const fmtDuree = s => { s = Math.round(s); return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")}`; };
 
   // carte des tempos et des mesures du montage, pour la barre de transport
   function plan() {
@@ -63,7 +62,9 @@ const MT = (() => {
 
   // ───── mémoire (par morceau, dans ce navigateur) et historique
   const cle = () => "mixeur.montage:" + MORCEAU.chemin;
-  function memorise() { try { localStorage.setItem(cle(), JSON.stringify(barres)); } catch (e) {} }
+  function memorise() {                          // brouillon gardé seulement s'il y a un montage en cours
+    try { enAttente() ? localStorage.setItem(cle(), JSON.stringify(barres)) : localStorage.removeItem(cle()); } catch (e) {}
+  }
   function nouveauMorceau() {
     hist = []; futur = []; presse = sel = selSrc = null; vue = null; version++;
     const n = nbSrc();
@@ -92,7 +93,6 @@ const MT = (() => {
     let p = 0; for (const [t, q] of chg) { if (t > tick + (MORCEAU.montage.tpb >> 3)) break; p = q; }
     return p;
   }
-  const cleLigne = p => p.prog == null ? String(p.canal) : `${p.canal}:${p.prog}`;
   const cleNote = (canal, tickSource) => { const q = progDe(canal, tickSource); return q == null ? String(canal) : `${canal}:${q}`; };
   function modifie(f, nouvelleSel, garderVue) {
     hist.push(copie(barres)); if (hist.length > 200) hist.shift(); futur = [];
@@ -254,8 +254,7 @@ const MT = (() => {
 
   // ───── détail des mesures : piano-roll, modifiable pour les mesures du montage
   const MAXD = 16;
-  const NOMS = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"];
-  const nomNote = (p, canal) => canal === 9 ? `note ${p}` : `${NOMS[p % 12]}${Math.floor(p / 12) - 2}`;   // Do3 = do du milieu
+  const nomNote = (p, canal) => canal === 9 ? `note ${p}` : nomNoteMidi(p);   // Do3 = do du milieu (outils.js)
   const virgule = x => String(Math.round(x * 100) / 100).replace(".", ",");
   function vueDetail() {
     if (focus === "src" && selSrc) return {liste: plage(selSrc.de, Math.min(selSrc.a, selSrc.de + MAXD - 1)), n: selSrc.a - selSrc.de + 1,
@@ -607,7 +606,7 @@ const MT = (() => {
     sel = {de, a}; dessineTout();
   }
   document.addEventListener("keydown", e => {
-    if (ONGLET !== "montage" || !MORCEAU || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (ONGLET !== "montage" || !MORCEAU || saisieEnCours(true)) return;
     const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey, notes = focus === "detail" && vue && vue.edition;
     let f = null;
     if (notes && c && k === "a") f = () => { vue.choix = new Set(vue.notes); dessineDetail(); };

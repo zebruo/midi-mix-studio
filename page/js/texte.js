@@ -1,11 +1,10 @@
-// Mixeur MIDI — onglet « Événements » (fichiers texte.*) : le fichier MIDI en texte commenté (format de tools\midi-texte\midi_texte.py),
+// Mixeur MIDI — onglet « Événements » (fichiers texte.*) : le document en texte commenté (format de midi_texte.py),
 // à voir et corriger en tableau (filtres, cellules modifiables, actions groupées) ou en texte brut,
-// vérifié en continu par le serveur, puis enregistré en nouveau .mid (jamais d'écrasement).
+// vérifié en continu par le serveur, puis appliqué au document en quittant l'onglet (ou avec « Enregistrer »).
 // (script classique : les variables et fonctions sont partagées entre les fichiers de la page)
 
 const TX = (() => {
   const PAR_PAGE = 250, HAUT_LIGNE = 18.75;              // lignes par page du tableau ; hauteur d'une ligne du texte brut (px)
-  const NOMS = ["Do", "Do♯", "Ré", "Ré♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"];
   const BASES = {do: 0, "ré": 2, re: 2, mi: 4, fa: 5, sol: 7, la: 9, si: 11};
   const LIBELLES = {note: "note", instrument: "instrument", cc: "contrôleur", tempo: "tempo", chiffrage: "chiffrage",
     "tonalité": "tonalité", pitch: "pitch", pression: "pression", "pression-note": "pression note", fin: "fin de piste",
@@ -23,7 +22,7 @@ const TX = (() => {
     const n = BASES[m[1].toLowerCase()] + [...m[2]].reduce((t, c) => t + ("♯#".includes(c) ? 1 : -1), 0) + (+m[3] + 2) * 12;
     return n >= 0 && n <= 127 ? n : null;
   }
-  const nomNote = (n, canal) => canal === 9 ? String(n) : NOMS[n % 12] + (Math.floor(n / 12) - 2);
+  const nomNote = (n, canal) => canal === 9 ? String(n) : nomNoteMidi(n);   // outils.js
   const gm = p => { const s = SONS.gu.find(x => x.id === `gu:0:${p}`); return s ? s.nom.replace(/^\d+ /, "") : `programme ${p}`; };
 
   // ───── mesures ⇄ ticks (comme midi_texte.py)
@@ -164,14 +163,13 @@ const TX = (() => {
     const quoi = t === 1 ? `1er temps de la mesure ${m}` : `${t}e temps de la mesure ${m}`;
     return `<span class="approx" title="attaque ${d} tick(s) avant le temps : en réalité le ${quoi}">≈ ${m}.${t}</span>`;
   }
-  const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   function celluleValeur(o) {
-    if (o.genre === "note" && !o.malforme) return `<input type="text" class="val" data-champ="note" value="${esc(o.note)}" title="ex. Fa♯4, Si♭2, ou un numéro MIDI">`;
+    if (o.genre === "note" && !o.malforme) return `<input type="text" class="val" data-champ="note" value="${echappe(o.note)}" title="ex. Fa♯4, Si♭2, ou un numéro MIDI">`;
     if (o.genre === "instrument" && o.canal !== 9 && /^\d+$/.test(o.reste)) {
-      let opts = ""; for (let p = 0; p < 128; p++) opts += `<option value="${p}"${p === +o.reste ? " selected" : ""}>${p} ${esc(gm(p))}</option>`;
+      let opts = ""; for (let p = 0; p < 128; p++) opts += `<option value="${p}"${p === +o.reste ? " selected" : ""}>${p} ${echappe(gm(p))}</option>`;
       return `<select class="val" data-champ="instrument">${opts}</select>`;
     }
-    return `<input type="text" class="val" data-champ="reste" value="${esc(o.reste)}">`;
+    return `<input type="text" class="val" data-champ="reste" value="${echappe(o.reste)}">`;
   }
   function dessine(classesSeules) {
     if (vue !== "tableau" || !chemin) return;
@@ -184,17 +182,17 @@ const TX = (() => {
     }
     tb.innerHTML = vus.map(o => {
       const note = o.genre === "note" && !o.malforme, n = o.i + 1;
-      return `<tr data-i="${o.i}" class="${erreurs.has(n) ? "erreur" : ""}${coches.has(o.i) ? " cochee" : ""}" title="${esc(erreurs.get(n) || "")}">
+      return `<tr data-i="${o.i}" class="${erreurs.has(n) ? "erreur" : ""}${coches.has(o.i) ? " cochee" : ""}" title="${echappe(erreurs.get(n) || "")}">
         <td><input type="checkbox" class="coche"${coches.has(o.i) ? " checked" : ""} aria-label="Cocher la ligne ${n}"></td>
         <td class="num">${n}</td>
         <td><input type="text" class="pos" data-champ="pos" value="${o.m}.${o.t}.${String(o.k).padStart(3, "0")}" title="mesure.temps.tick">${approx(o)}</td>
-        <td class="pis" title="${esc((pistes[o.piste] || {}).titre)}">${esc((pistes[o.piste] || {}).titre || "")}</td>
+        <td class="pis" title="${echappe((pistes[o.piste] || {}).titre)}">${echappe((pistes[o.piste] || {}).titre || "")}</td>
         <td class="num">${o.canal + 1}</td>
-        <td class="genre ${note ? "note" : ""}">${LIBELLES[o.genre] || esc(o.genre)}</td>
+        <td class="genre ${note ? "note" : ""}">${LIBELLES[o.genre] || echappe(o.genre)}</td>
         <td>${celluleValeur(o)}</td>
         <td>${note ? `<input type="text" class="dur" data-champ="dur" value="${o.dur}" title="temps.ticks (1.000 = un temps)">` : ""}</td>
         <td>${note ? `<input type="text" class="vel" data-champ="vel" value="${o.vel}" title="1 à 127">` : ""}</td>
-        <td><input type="text" class="com" data-champ="com" value="${esc(o.com)}"></td>
+        <td><input type="text" class="com" data-champ="com" value="${echappe(o.com)}"></td>
         <td><div class="acts"><button type="button" data-act="dup" title="Dupliquer cette ligne">⧉</button>
           <button type="button" data-act="ins" title="Ajouter une note juste après (même piste)">+</button>
           <button type="button" data-act="sup" title="Supprimer cette ligne">✕</button></div></td></tr>`;
@@ -436,14 +434,14 @@ const TX = (() => {
   // ───── chargement du texte du document
   function remplitPistes() {
     const sel = $("#tx-piste"), avant = sel.value;
-    sel.innerHTML = `<option value="">toutes</option>` + pistes.map(p => `<option value="${p.n}">${esc(p.titre)}</option>`).join("");
+    sel.innerHTML = `<option value="">toutes</option>` + pistes.map(p => `<option value="${p.n}">${echappe(p.titre)}</option>`).join("");
     if ([...sel.options].some(o => o.value === avant)) sel.value = avant;
   }
   async function charge(sansBrouillon) {
     if (!MORCEAU) return;
     chemin = MORCEAU.chemin; hist = []; futur = []; coches.clear(); erreurs = new Map(); page = 0;
     const nom = DOC ? (DOC.copie || DOC.original).split(/[\\/]/).pop() : chemin.split(/[\\/]/).pop();
-    $("#tx-source").innerHTML = `Le document en cours de <b>${esc(nom)}</b>${DOC && DOC.courante > 1 ? ` (version ${DOC.courante}, montage et corrections compris)` : ""}.`;
+    $("#tx-source").innerHTML = `Le document en cours de <b>${echappe(nom)}</b>${DOC && DOC.courante > 1 ? ` (version ${DOC.courante}, montage et corrections compris)` : ""}.`;
     $("#tx-etat").textContent = "lecture du document…";
     try {
       original = (await api("/api/texte/lire", {fichier: chemin})).texte.replace(/\n$/, "");

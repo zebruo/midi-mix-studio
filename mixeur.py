@@ -56,7 +56,7 @@ QUEUE = 4.0          # secondes rendues après la dernière note (résonance, é
 RENDU = "tempo-fixe+silences4"  # version de la façon de rendre les pistes : la changer invalide les écoutes en cache
 SANS_FENETRE = 0x08000000 if os.name == "nt" else 0       # pas de fenêtre noire pour les outils
 
-GM_FR = """Piano acoustique|Piano brillant|Piano électrique (grand)|Piano honky-tonk|Piano électrique 1|Piano électrique 2|Clavecin|Clavinet|Célesta|Glockenspiel|Boîte à musique|Vibraphone|Marimba|Xylophone|Cloches tubulaires|Dulcimer|Orgue Hammond|Orgue percussif|Orgue rock|Orgue d'église|Harmonium|Accordéon|Harmonica|Bandonéon|Guitare nylon|Guitare folk (acier)|Guitare jazz|Guitare électrique claire|Guitare étouffée|Guitare saturée|Guitare distorsion|Harmoniques de guitare|Contrebasse|Basse (doigts)|Basse (médiator)|Basse fretless|Slap basse 1|Slap basse 2|Basse synthé 1|Basse synthé 2|Violon|Alto|Violoncelle|Contrebasse (archet)|Cordes trémolo|Cordes pizzicato|Harpe|Timbales|Ensemble de cordes 1|Ensemble de cordes 2|Cordes synthé 1|Cordes synthé 2|Chœur « aah »|Voix « ooh »|Voix synthé|Coup d'orchestre|Trompette|Trombone|Tuba|Trompette bouchée|Cor|Section de cuivres|Cuivres synthé 1|Cuivres synthé 2|Saxophone soprano|Saxophone alto|Saxophone ténor|Saxophone baryton|Hautbois|Cor anglais|Basson|Clarinette|Piccolo|Flûte|Flûte à bec|Flûte de Pan|Bouteille soufflée|Shakuhachi|Sifflet|Ocarina|Lead carré|Lead dent de scie|Lead calliope|Lead chiff|Lead charang|Lead voix|Lead quintes|Lead basse + lead|Nappe new age|Nappe chaude|Nappe polysynth|Nappe chœur|Nappe archet|Nappe métallique|Nappe halo|Nappe balayage|Effet pluie|Effet bande-son|Effet cristal|Effet atmosphère|Effet brillance|Effet gobelins|Effet échos|Effet science-fiction|Sitar|Banjo|Shamisen|Koto|Kalimba|Cornemuse|Violon folk|Shanai|Clochette|Agogo|Steel drum|Wood-block|Taiko|Tom mélodique|Tambour synthé|Cymbale inversée|Bruit de frette|Souffle|Vagues|Oiseaux|Téléphone|Hélicoptère|Applaudissements|Coup de feu""".split("|")
+GM_FR = midi_texte.GM_FR      # noms français des 128 instruments General MIDI
 FAMILLES = ["Pianos", "Percussions chromatiques", "Orgues", "Guitares", "Basses", "Cordes", "Ensembles",
             "Cuivres", "Anches", "Flûtes", "Synthé lead", "Synthé nappes", "Synthé effets",
             "Instruments du monde", "Percussions", "Effets sonores"]
@@ -139,7 +139,19 @@ def dans_racines(chemin, travail_compris=True):
     """Fichier autorisé : dans un dossier « racines » de config.json, ou un document de travail du mixeur."""
     p = os.path.abspath(chemin)
     dossiers = list(CONFIG["racines"]) + ([TRAVAUX.dossier] if travail_compris else [])
-    return any(os.path.commonpath([p, os.path.abspath(r)]) == os.path.abspath(r) for r in dossiers)
+
+    def dedans(r):
+        try:
+            return os.path.commonpath([p, os.path.abspath(r)]) == os.path.abspath(r)
+        except ValueError:                          # autre lecteur (D: contre C:…) : forcément dehors
+            return False
+    return any(dedans(r) for r in dossiers)
+
+
+def verifie_chemin(chemin, travail_compris=True):
+    """Refuse un fichier absent ou hors des dossiers autorisés (seul contrôle des chemins reçus de la page)."""
+    if not dans_racines(chemin, travail_compris) or not os.path.exists(chemin):
+        raise ValueError("Fichier introuvable ou hors des dossiers autorisés.")
 
 
 def liste_fichiers():
@@ -204,11 +216,10 @@ def analyse(chemin, reglages_de=None):
     # canaux joués par plusieurs instruments : une ligne par instrument (ex. clarinette puis piano sur le canal 7)
     partages, chg, av = montage.instruments_par_canal(mid), montage.programmes(mid), mid.ticks_per_beat // 8
     par_instrument = {}
-    for piste in mid.tracks:
-        for d, _, on, _ in montage._notes(list(montage._absolus(piste)))[0]:
-            if on.channel in partages:
-                cle = (on.channel, montage.programme_a(chg.get(on.channel, []), d, av))
-                par_instrument[cle] = par_instrument.get(cle, 0) + 1
+    for d, _, on, _ in montage.notes(mid):
+        if on.channel in partages:
+            cle = (on.channel, montage.programme_a(chg.get(on.channel, []), d, av))
+            par_instrument[cle] = par_instrument.get(cle, 0) + 1
     pistes = []
     defaut_sf = CONFIG["canaux_sfz_par_defaut"]
     for ch in sorted(infos):
@@ -406,8 +417,7 @@ def rend_piste(chemin, canal, son, prog=None):
     seule.save(file=tampon)
     cle = hashlib.sha1(tampon.getvalue() + f"|{son}|contenu|{RENDU}".encode()).hexdigest()[:20]
     flac = os.path.join(PISTES, cle + ".flac")
-    if os.path.exists(flac) and os.path.getsize(flac) > 100:
-        os.utime(flac)
+    if deja_calcule(flac):
         return flac, False
     wav = os.path.join(PISTES, cle + ".tmp.wav")
     tmp_mid = os.path.join(PISTES, cle + ".mid")
@@ -490,8 +500,7 @@ def graphe(rendues, reverb, sources=None):
 def choix_pistes(req):
     """Vérifie la demande ; → (chemin, pistes de référence, pistes à entendre, écho, LUFS, solo ?)."""
     chemin = req["fichier"]
-    if not dans_racines(chemin) or not os.path.exists(chemin):
-        raise ValueError("Fichier introuvable ou hors des dossiers autorisés.")
+    verifie_chemin(chemin)
     pistes = req["pistes"]
     solo = any(p.get("solo") for p in pistes)
     reference = [p for p in pistes if not p.get("muet") and p.get("volume", 0) > 0]
@@ -522,6 +531,29 @@ def finale(req, fin, queue=QUEUE):
             f",atrim=end={fin + 1.5:.3f}")
 
 
+def deja_calcule(fichier):
+    """Le fichier du cache existe déjà (piste rendue, écoute) ? Il est alors marqué récent pour nettoie_cache."""
+    if os.path.exists(fichier) and os.path.getsize(fichier) > 100:
+        os.utime(fichier)
+        return True
+    return False
+
+
+CODECS = {".wav": ["-c:a", "pcm_s16le"], ".flac": ["-c:a", "flac", "-compression_level", "0"],
+          ".mp3": ["-c:a", "libmp3lame", "-b:a", "192k"]}
+
+
+def ecrit_mixage(req, entrees, chaines, gain, fin, sortie, queue=QUEUE):
+    """Dernière étape commune à l'écoute, à l'export et à l'aperçu du montage : gain de référence, limiteur
+    (pas de saturation), fin du morceau (finale), puis ffmpeg écrit `sortie` (format d'après son extension)."""
+    chaines = chaines + [f"[mix]volume={gain:.2f}dB,alimiter=limit=0.84:level=false,aresample=44100"
+                         f"{finale(req, fin, queue)}[out]"]
+    subprocess.run([CONFIG["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", *entrees,
+                    "-filter_complex", ";".join(chaines), "-map", "[out]", *CODECS[os.path.splitext(sortie)[1]], sortie],
+                   check=True, capture_output=True, timeout=900, creationflags=SANS_FENETRE)
+    nettoie_cache()
+
+
 def rend_pistes(chemin, pistes):
     """Rend (ou reprend du cache) les pistes demandées, plusieurs à la fois : chaque rendu FluidSynth/sfizz
     n'occupe qu'un cœur du processeur. « rendus_simultanes » (config.json, 4 par défaut) limite la mémoire utilisée."""
@@ -545,6 +577,8 @@ def gain_reference(chemin, reference, fichiers, reverb, lufs):
                              capture_output=True, timeout=900, creationflags=SANS_FENETRE, check=True)
         txt = res.stderr.decode("utf-8", "replace")
         i_vals = re.findall(r"I:\s+(-?[\d.]+|-inf) LUFS", txt)
+        if len(MESURES) > 200:                     # une session longue ne garde que les mesures récentes
+            MESURES.clear()
         MESURES[cle] = float(i_vals[-1]) if i_vals and i_vals[-1] != "-inf" else -70.0
     return max(-30.0, min(40.0, lufs - MESURES[cle]))
 
@@ -559,8 +593,7 @@ def mixe(req):
     if cible == "ecoute":     # écoute en FLAC : bien plus rapide à produire que le MP3 (~2 s au lieu de ~6)
         empreinte = hashlib.sha1(json.dumps([req, st.st_mtime_ns, QUEUE, RENDU], sort_keys=True).encode()).hexdigest()[:16]
         sortie = os.path.join(ECOUTE, empreinte + ".flac")
-        if os.path.exists(sortie) and os.path.getsize(sortie) > 100:      # ce mixage a déjà été écouté
-            os.utime(sortie)
+        if deja_calcule(sortie):                                           # ce mixage a déjà été écouté
             return {"fichier": sortie, "url": "/cache/ecoute/" + os.path.basename(sortie), "pistes": len(actives),
                     "recalculees": 0, "secondes": 0, "solo": solo}
     fichiers, recalc = rend_pistes(chemin, reference)
@@ -568,8 +601,6 @@ def mixe(req):
     gain = gain_reference(chemin, reference, fichiers, reverb, lufs)
     # mixage de ce qu'on écoute, avec le même gain + limiteur (pas de saturation)
     e, ch = graphe([(p, fichiers[ligne(p)]) for p in actives], reverb)
-    fin = mido.MidiFile(chemin).length
-    ch.append(f"[mix]volume={gain:.2f}dB,alimiter=limit=0.84:level=false,aresample=44100{finale(req, fin)}[out]")
     if cible != "ecoute":
         # un document de travail s'exporte à côté du morceau (ou de sa copie enregistrée), pas dans le cache
         nom = req.get("base") if req.get("base") and dans_racines(req["base"], travail_compris=False) else chemin
@@ -578,12 +609,7 @@ def mixe(req):
         sortie, k = base + ext, 2
         while os.path.exists(sortie):
             sortie, k = f"{base}_{k}{ext}", k + 1
-    codec = {".wav": ["-c:a", "pcm_s16le"], ".flac": ["-c:a", "flac", "-compression_level", "0"],
-             ".mp3": ["-c:a", "libmp3lame", "-b:a", "192k"]}[os.path.splitext(sortie)[1]]
-    subprocess.run([CONFIG["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", *e,
-                    "-filter_complex", ";".join(ch), "-map", "[out]", *codec, sortie],
-                   check=True, capture_output=True, timeout=900, creationflags=SANS_FENETRE)
-    nettoie_cache()
+    ecrit_mixage(req, e, ch, gain, lis_mid(chemin).length, sortie)
     return {"fichier": sortie, "url": "/cache/ecoute/" + os.path.basename(sortie) if cible == "ecoute" else None,
             "pistes": len(actives), "recalculees": recalc, "secondes": round(time.time() - debut, 1),
             "solo": solo}
@@ -640,8 +666,7 @@ def ecoute_montage(req):
     empreinte = hashlib.sha1(json.dumps([req, st.st_mtime_ns, "montage3", QUEUE, RENDU], sort_keys=True).encode()).hexdigest()[:16]
     sortie = os.path.join(ECOUTE, empreinte + ".flac")
     url = "/cache/ecoute/" + os.path.basename(sortie)
-    if os.path.exists(sortie) and os.path.getsize(sortie) > 100:
-        os.utime(sortie)
+    if deja_calcule(sortie):
         return {**reponse, "fichier": sortie, "url": url, "recalculees": 0, "secondes": 0}
     fichiers, recalc = rend_pistes(chemin, reference)
     debut = time.time()
@@ -673,36 +698,9 @@ def ecoute_montage(req):
             prefixe += montage.chaine_collage(f"[{i}:a]", plages_s, f"[r{i}]", f"m{i}", queue=queue)
             sources.append(f"[r{i}]")
     e, ch = graphe(liste, reverb, sources)
-    ch = prefixe + ch + [f"[mix]volume={gain:.2f}dB,alimiter=limit=0.84:level=false,aresample=44100{finale(req, fin, queue)}[out]"]
-    subprocess.run([CONFIG["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", *e, "-filter_complex", ";".join(ch),
-                    "-map", "[out]", "-c:a", "flac", "-compression_level", "0", sortie],
-                   check=True, capture_output=True, timeout=900, creationflags=SANS_FENETRE)
-    nettoie_cache()
+    ecrit_mixage(req, e, prefixe + ch, gain, fin, sortie, queue)
     return {**reponse, "fichier": sortie, "url": url, "recalculees": recalc, "secondes": round(time.time() - debut, 1),
             "retouchees": len(modifies)}
-
-
-def enregistre_montage(req):
-    """Écrit le montage en .mid à côté de l'original (jamais d'écrasement), avec les réglages de mixage."""
-    chemin = req["fichier"]
-    if not dans_racines(chemin) or not os.path.exists(chemin):
-        raise ValueError("Fichier introuvable ou hors des dossiers autorisés.")
-    nom = os.path.basename(str(req.get("nom", "")).strip())
-    if not nom or re.search(r'[<>:"/\\|?*]', nom):
-        raise ValueError("Nom de fichier invalide.")
-    if not nom.lower().endswith((".mid", ".midi")):
-        nom += ".mid"
-    cible = os.path.join(os.path.dirname(chemin), nom)
-    if os.path.exists(cible):
-        base, k = os.path.splitext(cible)[0], 2
-        while os.path.exists(f"{base}_{k}.mid"):
-            k += 1
-        return {"existe": True, "propose": os.path.basename(f"{base}_{k}.mid")}
-    montage.assemble(mido.MidiFile(chemin), req["segments"]).save(cible)
-    if req.get("reglages"):
-        with open(os.path.splitext(cible)[0] + ".mix.json", "w", encoding="utf-8") as f:
-            json.dump(req["reglages"], f, ensure_ascii=False, indent=2)
-    return {"fichier": cible}
 
 
 # ───────────────────────────── document de travail ─────────────────────────────
@@ -718,10 +716,8 @@ def etat_doc(d, avec_morceau=True):
 def route_doc(url, req):
     """/api/doc/… : ouvrir, reprendre, appliquer un montage ou un texte, changer de version, enregistrer."""
     if url == "/api/doc/ouvrir":
-        f = req["fichier"]
-        if not dans_racines(f, travail_compris=False) or not os.path.exists(f):
-            raise ValueError("Fichier introuvable ou hors des dossiers autorisés.")
-        return etat_doc(TRAVAUX.ouvre(f))
+        verifie_chemin(req["fichier"], travail_compris=False)
+        return etat_doc(TRAVAUX.ouvre(req["fichier"]))
     d = TRAVAUX.charge(req.get("doc"))
     if url == "/api/doc/reprendre":
         return etat_doc(d)
@@ -743,46 +739,34 @@ def route_doc(url, req):
     raise ValueError("Demande inconnue.")
 
 
-# ───────────────────────────── onglet Texte ─────────────────────────────
-def verifie_chemin(chemin):
-    if not dans_racines(chemin) or not os.path.exists(chemin):
-        raise ValueError("Fichier introuvable ou hors des dossiers autorisés.")
-
-
+# ───────────────────────────── onglet Événements ─────────────────────────────
 def erreurs_texte(texte):
     mid, err = midi_texte.analyse_texte(texte)
     return mid, [{"ligne": n, "message": msg, "contenu": c} for n, msg, c in err]
-
-
-def enregistre_texte(req):
-    """Le texte (modifié dans l'onglet Texte) devient un nouveau .mid à côté de l'original, jamais d'écrasement."""
-    chemin = req["fichier"]
-    verifie_chemin(chemin)
-    mid, err = erreurs_texte(req["texte"])
-    if err:
-        return {"erreurs": err}
-    nom = os.path.basename(str(req.get("nom", "")).strip())
-    if not nom or re.search(r'[<>:"/\\|?*]', nom):
-        raise ValueError("Nom de fichier invalide.")
-    if not nom.lower().endswith((".mid", ".midi")):
-        nom += ".mid"
-    cible = os.path.join(os.path.dirname(chemin), nom)
-    if os.path.exists(cible):
-        base, k = os.path.splitext(cible)[0], 2
-        while os.path.exists(f"{base}_{k}.mid"):
-            k += 1
-        return {"existe": True, "propose": os.path.basename(f"{base}_{k}.mid")}
-    mid.save(cible)
-    if req.get("reglages"):
-        with open(os.path.splitext(cible)[0] + ".mix.json", "w", encoding="utf-8") as f:
-            json.dump(req["reglages"], f, ensure_ascii=False, indent=2)
-    return {"fichier": cible}
 
 
 # ───────────────────────────── serveur ─────────────────────────────
 class Console(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
+
+    def refus(self, post):
+        """Protection de l'API : seule la console du mixeur, ouverte sur ce PC, peut s'en servir.
+        - Host local (localhost, 127.0.0.1, [::1] sur le port du mixeur) : bloque le « DNS rebinding » ;
+        - POST : Origin, s'il est présent, égal à celui du mixeur (« null » refusé), et corps en application/json,
+          ce qui oblige le navigateur à demander une autorisation (preflight) qu'aucun autre site n'obtient.
+        Aucun en-tête CORS n'est jamais envoyé. → message d'erreur, ou None si la requête est acceptée."""
+        port = self.server.server_address[1]
+        hote = (self.headers.get("Host") or "").strip().lower()
+        if hote not in {f"{h}:{port}" for h in ("localhost", "127.0.0.1", "[::1]")}:
+            return "hôte non autorisé"
+        if post:
+            origine = self.headers.get("Origin")
+            if origine is not None and origine.lower() != f"http://{hote}":
+                return "origine non autorisée"
+            if (self.headers.get("Content-Type") or "").split(";")[0].strip().lower() != "application/json":
+                return "requête non autorisée (JSON attendu)"
+        return None
 
     def envoie(self, code, corps, type_="application/json; charset=utf-8", entetes=None):
         data = corps if isinstance(corps, bytes) else json.dumps(corps, ensure_ascii=False).encode("utf-8")
@@ -818,6 +802,8 @@ class Console(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if (erreur := self.refus(post=False)):
+            return self.envoie(403, {"erreur": erreur})
         url = urllib.parse.urlparse(self.path).path
         if url in ("/", "/index.html"):
             return self.fichier(os.path.join(PAGE, "index.html"), "text/html; charset=utf-8")
@@ -842,20 +828,16 @@ class Console(http.server.BaseHTTPRequestHandler):
         self.envoie(404, {"erreur": "introuvable"})
 
     def do_POST(self):
+        if (erreur := self.refus(post=True)):
+            return self.envoie(403, {"erreur": erreur})
         url = urllib.parse.urlparse(self.path).path
         try:
             n = int(self.headers.get("Content-Length", 0))
             req = json.loads(self.rfile.read(n) or b"{}")
-            if url == "/api/charger":
-                if not dans_racines(req["fichier"]):
-                    raise ValueError("Ce fichier n'est pas dans les dossiers autorisés.")
-                return self.envoie(200, analyse(req["fichier"]))
             if url == "/api/rendu":
                 with VERROU:
                     return self.envoie(200, mixe(req))
             if url == "/api/montage/ecoute":
-                if not dans_racines(req["fichier"]):
-                    raise ValueError("Ce fichier n'est pas dans les dossiers autorisés.")
                 with VERROU:
                     return self.envoie(200, ecoute_montage(req))
             if url.startswith("/api/doc/"):
@@ -867,26 +849,8 @@ class Console(http.server.BaseHTTPRequestHandler):
             if url == "/api/texte/lire":
                 verifie_chemin(req["fichier"])
                 return self.envoie(200, {"texte": midi_texte.texte_de(mido.MidiFile(req["fichier"]), os.path.basename(req["fichier"]))})
-            if url == "/api/texte/montage":         # le montage en cours (pas encore enregistré), assemblé puis mis en texte
-                verifie_chemin(req["fichier"])
-                base = os.path.splitext(os.path.basename(req["fichier"]))[0] + "_montage.mid"
-                mid = montage.assemble(mido.MidiFile(req["fichier"]), req["segments"])
-                return self.envoie(200, {"texte": midi_texte.texte_de(mid, base)})
             if url == "/api/texte/verifier":
                 return self.envoie(200, {"erreurs": erreurs_texte(req["texte"])[1]})
-            if url == "/api/texte/enregistrer":
-                with VERROU:
-                    return self.envoie(200, enregistre_texte(req))
-            if url == "/api/montage/enregistrer":
-                with VERROU:
-                    return self.envoie(200, enregistre_montage(req))
-            if url == "/api/enregistrer":
-                if not dans_racines(req["fichier"]):
-                    raise ValueError("Ce fichier n'est pas dans les dossiers autorisés.")
-                cible = os.path.splitext(req["fichier"])[0] + ".mix.json"
-                with open(cible, "w", encoding="utf-8") as f:
-                    json.dump(req["reglages"], f, ensure_ascii=False, indent=2)
-                return self.envoie(200, {"fichier": cible})
             if url == "/api/vider_cache":
                 with VERROU:
                     for d in (PISTES, ECOUTE, MONTAGES):
@@ -960,8 +924,7 @@ def main():
     SONS = catalogue()
     TRAVAUX.menage()
     SERVEUR = http.server.ThreadingHTTPServer(("127.0.0.1", port), Console)
-    if "--sans-navigateur" not in sys.argv:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    threading.Timer(0.6, lambda: webbrowser.open(url)).start()   # la console ouverte fait vivre le serveur (Presence)
     threading.Thread(target=PRESENCE.surveille, daemon=True).start()
     SERVEUR.serve_forever()
 

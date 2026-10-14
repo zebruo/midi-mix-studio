@@ -1,8 +1,8 @@
 """Mixeur MIDI — documents de travail.
 
 Quand un morceau est chargé, le mixeur travaille sur une copie (cache\\travail\\<doc>\\v1.mid) : les onglets Mixage,
-Montage et Texte voient et modifient ce même document. Chaque modification appliquée (un montage, une correction
-du texte) crée une nouvelle version (v2.mid, v3.mid…), ce qui permet d'annuler et de rétablir.
+Montage et Événements voient et modifient ce même document. Chaque modification appliquée (un montage, des
+corrections d'événements) crée une nouvelle version (v2.mid, v3.mid…), ce qui permet d'annuler et de rétablir.
 Rien n'est écrit à côté du morceau avant « Enregistrer » :
 - si seuls les réglages de mixage ont changé, ils vont dans le .mix.json du morceau ;
 - si les notes ou la structure ont changé, une copie est créée avec un nom automatique (morceau_v2.mid, puis le

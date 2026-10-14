@@ -9,9 +9,7 @@ function dessine() {
   const tb = $("#pistes");
   tb.innerHTML = "";
   PISTES.forEach((p, i) => {
-    const moteur = p.son.startsWith("sf:") ? "sf" : "gu";
-    const tr = document.createElement("tr");
-    tr.className = moteur;
+    const tr = document.createElement("tr");          // classe gu / sf (couleur du moteur) : posée par afficheSon
     tr.innerHTML = `<td class="ch">${String(p.canal + 1).padStart(2, "0")}</td><td class="name">${p.nom}</td>
       <td><button type="button" class="son-choix" aria-haspopup="dialog" aria-label="Son de ${p.nom}"><span class="moteur"></span><span class="son-nom"></span><span class="fleche">▾</span></button></td>
       <td class="notes">${p.notes.toLocaleString("fr-FR")}</td>
@@ -51,7 +49,6 @@ function grise() {
 // Le serveur donne le niveau de chaque piste rendue (toutes les 50 ms) et le gain général du mixage ;
 // la page y ajoute le volume de la piste et suit la position de lecture : réaction immédiate aux curseurs, muet, solo.
 let NIVEAUX = null;
-const clePiste = p => p.prog == null ? String(p.canal) : `${p.canal}:${p.prog}`;
 async function chargeNiveaux() {
   if (!MORCEAU || ONGLET !== "mixage") return;
   const m = MORCEAU;
@@ -65,7 +62,7 @@ async function chargeNiveaux() {
   [...$("#pistes").rows].forEach((r, i) => {
     const p = PISTES[i], el = r.querySelector(".vum"); if (!p || !el) return;
     let db = -100;
-    const n = joue && NIVEAUX.pistes[clePiste(p)];
+    const n = joue && NIVEAUX.pistes[cleLigne(p)];
     if (n && !p.muet && !(solo && !p.solo) && p.volume > 0) {
       const v = n.niv[Math.floor(t / NIVEAUX.pas)];
       if (v !== undefined && v > -100) db = v + n.base + 40 * Math.log10(p.volume / 70) + NIVEAUX.gain;

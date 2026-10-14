@@ -39,7 +39,3 @@
 .mt-detail-zone canvas{display:block;width:100%}
 .mt-bulle{position:absolute;pointer-events:none;background:#0a0b0c;border:1px solid var(--line);border-radius:3px;
   padding:4px 8px;font:12px var(--mono);color:var(--text);white-space:nowrap;box-shadow:0 2px 8px #000a;z-index:2}
-.mt-enreg{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.mt-enreg input{flex:1;min-width:240px;max-width:420px;font:500 13px var(--body);color:var(--text);background:var(--rail);
-  border:1px solid var(--line);border-radius:4px;padding:7px 10px}
-.mt-enreg button.play{background:var(--amber);color:#1b1d21;border-color:var(--amber);font-weight:600}

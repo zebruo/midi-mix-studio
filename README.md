@@ -5,7 +5,7 @@ Console de mixage **locale** pour fichiers `.mid` : on choisit le son de chaque 
 - **FluidSynth + GeneralUser GS** : rendu « intimiste », sons General MIDI (piano, guitares, batteries…)
 - **sfizz + Salamander Grand Piano + Virtual Playing Orchestra** : rendu « lyrique », vrai piano et orchestre
 
-L'application tourne sur le PC (`http://localhost:8765`, accessible seulement depuis cette machine) et s'utilise dans le navigateur. Rien n'est envoyé sur Internet.
+L'application tourne sur le PC (`http://localhost:8765`, accessible seulement depuis cette machine) et s'utilise dans le navigateur. Rien n'est envoyé sur Internet, et le serveur n'obéit qu'à sa propre console : les requêtes venant d'un autre site ouvert dans le navigateur sont refusées.
 
 ## Fonctions
 
@@ -30,9 +30,9 @@ L'application tourne sur le PC (`http://localhost:8765`, accessible seulement de
 
 ## Installation (Windows)
 
-1. **Python 3.12** ou plus récent, puis la bibliothèque MIDI :
+1. **Python 3.12** ou plus récent, puis la bibliothèque MIDI et le calcul des vumètres :
    ```
-   pip install mido
+   pip install mido numpy
    ```
 2. **Moteurs et outils** :
    - [FluidSynth](https://www.fluidsynth.org) (`fluidsynth.exe`)

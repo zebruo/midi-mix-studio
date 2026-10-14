@@ -12,7 +12,6 @@ for (const id of ["reverb", "lufs", "fondu"]) {
 const bilan = r => `${r.pistes} piste(s) mixée(s) — ` + (r.recalculees ? `${r.recalculees} piste(s) recalculée(s), ` : "")
   + (r.raccords !== undefined ? `montage à ${r.raccords} raccord(s), ` : "")
   + (r.secondes ? `calcul en ${String(r.secondes).replace(".", ",")} s.` : "déjà calculé.");
-const echappe = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const nomDe = chemin => String(chemin || "").split(/[\\/]/).pop();
 
 // Ce que joue la barre de transport : le document (mixage), ou l'aperçu du montage en cours (onglet Montage)
@@ -95,7 +94,7 @@ function appliqueDoc(r, ouverture) {
   }
   ouverture ? REG.depart() : REG.suit();
   const d = Math.round(MORCEAU.duree);
-  $("#meta").textContent = `${PISTES.length} pistes · ${Math.floor(d / 60)} min ${String(d % 60).padStart(2, "0")}${note}`;
+  $("#meta").textContent = `${PISTES.length} pistes · ${fmtDuree(d)}${note}`;
   dessine(); MT.nouveauMorceau(); TX.nouveauMorceau();
   // un autre morceau repart du début ; une nouvelle version du même document garde la position (et la lecture)
   TR[ouverture ? "nouveauMorceau" : "nouveauContenu"](ONGLET === "montage" ? MT.plan() : MORCEAU);
@@ -189,8 +188,7 @@ $("#doc-retablir").addEventListener("click", () => annulerRetablir(1));
 document.addEventListener("keydown", e => {
   const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
   if (c && k === "s") { e.preventDefault(); enregistrer(false); return; }
-  const el = document.activeElement;              // un champ de saisie garde son propre Ctrl+Z (pas un curseur)
-  if (/INPUT|SELECT|TEXTAREA/.test(el.tagName) && el.type !== "range") return;
+  if (saisieEnCours()) return;                    // un champ de saisie garde son propre Ctrl+Z (pas un curseur)
   if (c && k === "z" && !e.shiftKey) { e.preventDefault(); annulerRetablir(-1); }
   else if (c && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); annulerRetablir(1); }
 });
@@ -276,12 +274,13 @@ $("#vider").addEventListener("click", async () => { try { await api("/api/vider_
 // Présence : le mixeur s'arrête tout seul une dizaine de secondes après la fermeture du dernier onglet
 // (plus de bouton « Quitter ») ; un rechargement de la page (F5) ne l'arrête pas.
 const PAGE_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
-const presence = () => fetch("/api/presence", {method: "POST", headers: {"Content-Type": "application/json"},
-  body: JSON.stringify({page: PAGE_ID})}).catch(() => {});
+// (fetch « keepalive » plutôt que sendBeacon : il part même quand l'onglet se ferme, et peut envoyer du JSON,
+// seul format accepté par le serveur)
+const presence = (fin = false) => fetch("/api/presence", {method: "POST", keepalive: true,
+  headers: {"Content-Type": "application/json"}, body: JSON.stringify({page: PAGE_ID, fin})}).catch(() => {});
 presence(); setInterval(presence, 20000);
 window.addEventListener("pageshow", e => { if (e.persisted) presence(); });
-window.addEventListener("pagehide", () =>
-  navigator.sendBeacon("/api/presence", new Blob([JSON.stringify({page: PAGE_ID, fin: true})], {type: "application/json"})));
+window.addEventListener("pagehide", () => presence(true));
 
 // numéro de version (fichier VERSION.txt) ; un serveur lancé avant une mise à jour est signalé
 async function verifieVersion() {
@@ -301,6 +300,11 @@ async function verifieVersion() {
     try {
       dernier = localStorage.getItem("mixeur.fichier"); mode = localStorage.getItem("mixeur.onglet");
       travail = JSON.parse(localStorage.getItem("mixeur.travail") || "null");
+      // brouillons du Montage et des Événements (une clé par version de document) : seuls ceux du travail
+      // non enregistré, qui peut être repris, sont gardés ; les autres ne serviront plus
+      const garde = travail && travail.modifie ? travail.doc : null;
+      for (const k of Object.keys(localStorage))
+        if (/^mixeur\.(montage|texte):/.test(k) && !(garde && k.includes(garde))) localStorage.removeItem(k);
     } catch (e) {}
     const q = new URLSearchParams(location.search);
     const demande = q.get("f");                                              // ?f=chemin : ouvre ce morceau
