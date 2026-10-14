@@ -1,0 +1,31 @@
+{
+  "port": 8765,
+  "racines": [
+    "C:\\Users\\VOTRE_NOM\\Documents\\musique"
+  ],
+  "fluidsynth": "C:\\Users\\VOTRE_NOM\\tools\\fluidsynth\\bin\\fluidsynth.exe",
+  "generaluser": "C:\\Users\\VOTRE_NOM\\tools\\soundfonts\\GeneralUser-GS.sf2",
+  "sfizz_render": "C:\\Users\\VOTRE_NOM\\tools\\sfizz\\bin\\Release\\sfizz_render.exe",
+  "dossier_sfz": "C:\\Users\\VOTRE_NOM\\tools\\sfz",
+  "ffmpeg": "ffmpeg",
+  "cache_max_mo": 2000,
+  "rendus_simultanes": 4,
+  "gain_sfz": {
+    "_defaut": 1.5,
+    "SalamanderGrandPiano-master/Salamander Grand Piano V3.sfz": 2.8,
+    "VPO/Virtual-Playing-Orchestra3/Strings/all-strings-SEC-sustain.sfz": 1.5,
+    "VPO/Virtual-Playing-Orchestra3/Strings/cello-SEC-sustain.sfz": 1.2,
+    "VPO/Virtual-Playing-Orchestra3/Brass/french-horn-SEC-sustain.sfz": 1.8,
+    "VPO/Virtual-Playing-Orchestra3/Strings/harp-sustain.sfz": 1.4,
+    "VPO/Virtual-Playing-Orchestra3/Keys/celesta.sfz": 1.6
+  },
+  "canaux_sfz_par_defaut": {
+    "_explication": "Convention des musiques des films : canaux 11 à 16 sans changement d'instrument = banques sfizz.",
+    "10": "SalamanderGrandPiano-master/Salamander Grand Piano V3.sfz",
+    "11": "VPO/Virtual-Playing-Orchestra3/Strings/all-strings-SEC-sustain.sfz",
+    "12": "VPO/Virtual-Playing-Orchestra3/Strings/cello-SEC-sustain.sfz",
+    "13": "VPO/Virtual-Playing-Orchestra3/Brass/french-horn-SEC-sustain.sfz",
+    "14": "VPO/Virtual-Playing-Orchestra3/Strings/harp-sustain.sfz",
+    "15": "VPO/Virtual-Playing-Orchestra3/Keys/celesta.sfz"
+  }
+}

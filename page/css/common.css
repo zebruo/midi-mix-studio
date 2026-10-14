@@ -1,0 +1,23 @@
+/* Mixeur MIDI — commun : couleurs, polices, mise à zéro, aspect de base des boutons, listes et champs */
+/* Look sombre unique. À charger avant console.css et transport.css. */
+:root{
+  --panel:#1b1d21; --deck:#24272d; --rail:#2e3239; --line:#3a3f48;
+  --text:#e7e3da; --muted:#9a978f;
+  --amber:#f0a83c;   /* GeneralUser — intimiste */
+  --teal:#5cc6b8;    /* sfizz — lyrique */
+  --led:#ff5d4a; --ok:#7cc48a;
+  --display:"Bahnschrift SemiCondensed","Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--panel);color:var(--text);font:14px/1.45 var(--body);padding-inline:16px;padding-block:20px}
+label.k{font:600 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+select,button,input[type=search]{font:500 13px var(--body);color:var(--text);background:var(--rail);border:1px solid var(--line);border-radius:4px;padding:7px 10px}
+button{cursor:pointer}
+button:disabled{opacity:.45;cursor:wait}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+input[type=range]{width:120px;accent-color:var(--amber)}
+.val{font:12px var(--mono);color:var(--muted);width:42px;text-align:right;font-variant-numeric:tabular-nums}
+audio{display:none}

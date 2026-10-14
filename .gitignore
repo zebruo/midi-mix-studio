@@ -1,0 +1,12 @@
+# Rendus audio régénérables (jusqu'à 2 Go)
+cache/
+
+# Réglages propres à ce PC (modèle : config.exemple.json)
+config.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Sauvegardes
+*.bak

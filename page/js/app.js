@@ -1,0 +1,263 @@
+// Mixeur MIDI — application : réglages généraux, document de travail (ouvrir, appliquer, versions, enregistrer),
+// onglets, rendu, exports, cache, démarrage
+// (script classique : les variables et fonctions sont partagées entre les fichiers de la page)
+
+const reglages = () => ({version: 1, reverb: +$("#reverb").value, lufs: +$("#lufs").value, fondu: +$("#fondu").value,
+  pistes: PISTES.map(p => ({canal: p.canal, prog: p.prog, son: p.son, volume: p.volume, pan: p.pan, muet: p.muet, solo: p.solo}))});
+const fmt = {reverb: v => v + " %", lufs: v => v, fondu: v => v + " s"};
+for (const id of ["reverb", "lufs", "fondu"]) {
+  $("#" + id).addEventListener("input", e => e.target.nextElementSibling.textContent = fmt[id](e.target.value));
+  $("#" + id).addEventListener("change", aChange);
+}
+const bilan = r => `${r.pistes} piste(s) mixée(s) — ` + (r.recalculees ? `${r.recalculees} piste(s) recalculée(s), ` : "")
+  + (r.raccords !== undefined ? `montage à ${r.raccords} raccord(s), ` : "")
+  + (r.secondes ? `calcul en ${String(r.secondes).replace(".", ",")} s.` : "déjà calculé.");
+const echappe = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const nomDe = chemin => String(chemin || "").split(/[\\/]/).pop();
+
+// Ce que joue la barre de transport : le document (mixage), ou l'aperçu du montage en cours (onglet Montage)
+const demandeEcoute = () => ONGLET === "montage"
+  ? api("/api/montage/ecoute", {fichier: MORCEAU.chemin, segments: MT.segments(), ...reglages()})
+  : api("/api/rendu", {fichier: MORCEAU.chemin, cible: "ecoute", ...reglages()});
+
+// Mise à jour automatique : dès qu'on a écouté une fois, chaque réglage (solo, muet, volume, pan, son, écho…)
+// ou chaque modification du montage relance le calcul en arrière-plan ; la lecture continue au même endroit.
+let minuterie = null, enCours = false, encore = false;
+function aChange() {
+  if (!MORCEAU || !TR.aUnMixage()) return;          // pas encore écouté : ▶ fera le premier calcul
+  clearTimeout(minuterie); minuterie = setTimeout(remixe, 250);
+}
+async function remixe() {
+  if (enCours) { encore = true; return; }           // un calcul tourne déjà : on refera avec les derniers réglages
+  enCours = true; encore = false;
+  const morceau = MORCEAU, mode = ONGLET;
+  statut(mode === "montage" ? "Mise à jour du montage…" : "Mise à jour du mixage…");
+  try {
+    const r = await demandeEcoute();
+    if (!encore && MORCEAU === morceau && ONGLET === mode) { TR.charge(r.url); statut("À jour : " + bilan(r), "ok"); chargeNiveaux(); }
+  } catch (e) { statut(e.message, "err"); }
+  enCours = false;
+  if (encore) remixe(); else cache();
+}
+
+// ───── document de travail
+function appliqueReglages(r) {
+  // un réglage sans instrument (ancien fichier) vaut pour toutes les lignes de son canal
+  for (const s of r.pistes || []) for (const p of PISTES)
+    if (p.canal === s.canal && (s.prog == null || s.prog === p.prog)) Object.assign(p, {...s, prog: p.prog});
+  if (r.reverb !== undefined) { $("#reverb").value = r.reverb; $("#reverb").nextElementSibling.textContent = r.reverb + " %"; }
+  if (r.lufs !== undefined) { $("#lufs").value = r.lufs; $("#lufs").nextElementSibling.textContent = r.lufs; }
+  $("#fondu").value = r.fondu || 0; $("#fondu").nextElementSibling.textContent = (r.fondu || 0) + " s";
+}
+// r = réponse du serveur {doc, morceau}. Ouverture : réglages du .mix.json (ou ceux d'un travail repris).
+// Nouvelle version (montage ou texte appliqué, annuler…) : chaque piste garde son son, son volume, son pan…
+function appliqueDoc(r, ouverture) {
+  const M = r.morceau;
+  if (!M.montage || !M.montage.notes)              // page plus récente que le programme qui tourne
+    throw new Error("Le mixeur qui tourne est une ancienne version : cliquez sur « Quitter », relancez-le par le raccourci du bureau, puis Ctrl+F5.");
+  const anciennes = PISTES;
+  DOC = r.doc; MORCEAU = M; PISTES = M.pistes;
+  let note = "";
+  if (ouverture) {
+    const reg = ouverture.reglages || M.reglages;
+    if (reg) appliqueReglages(reg);
+    if (!ouverture.reglages && M.reglages) note = ` · réglages repris de ${M.reglages_fichier}`;
+    REGLAGES_ENREGISTRES = ouverture.reference ?? JSON.stringify(reglages());
+  } else {
+    for (const p of PISTES) {
+      const q = anciennes.find(x => x.canal === p.canal && x.prog === p.prog);
+      if (q) Object.assign(p, {son: q.son, volume: q.volume, pan: q.pan, muet: q.muet, solo: q.solo});
+    }
+  }
+  const d = Math.round(MORCEAU.duree);
+  $("#meta").textContent = `${PISTES.length} pistes · ${Math.floor(d / 60)} min ${String(d % 60).padStart(2, "0")}${note}`;
+  dessine(); MT.nouveauMorceau(); TX.nouveauMorceau();
+  TR.nouveauMorceau(ONGLET === "montage" ? MT.plan() : MORCEAU);
+  majDoc();
+}
+// le montage ou les corrections du texte en cours deviennent une nouvelle version du document
+async function appliqueEnAttente() {
+  if (!DOC) return true;
+  if (ONGLET === "montage" && MT.enAttente()) {
+    statut("Application du montage au document…");
+    const r = await api("/api/doc/montage", {doc: DOC.id, segments: MT.segments()});
+    MT.oublie(); appliqueDoc(r);
+    statut(`Montage appliqué au document (version ${DOC.versions.indexOf(DOC.courante) + 1}).`, "ok");
+  } else if (ONGLET === "texte" && TX.enAttente()) {
+    statut("Application des corrections au document…");
+    const r = await api("/api/doc/texte", {doc: DOC.id, texte: TX.texte()});
+    if (r.erreurs) {
+      TX.montreErreurs(r.erreurs);
+      statut(`Le texte a ${r.erreurs.length} erreur(s) : corrigez-les (liste en haut de l'onglet) avant de changer d'onglet ou d'enregistrer.`, "err");
+      return false;
+    }
+    TX.oublie(); appliqueDoc(r);
+    statut(`Corrections appliquées au document (version ${DOC.versions.indexOf(DOC.courante) + 1}).`, "ok");
+  }
+  return true;
+}
+const estModifie = () => !!DOC && (DOC.modifie || JSON.stringify(reglages()) !== REGLAGES_ENREGISTRES || MT.enAttente() || TX.enAttente());
+function majDoc() {
+  $("#doc").hidden = !DOC;
+  if (!DOC) return;
+  const m = estModifie(), i = DOC.versions.indexOf(DOC.courante);
+  $("#doc-etat").innerHTML = (m ? `<span class="modif">● modifié</span>` : `<span class="ok">✓ enregistré</span>`)
+    + ` · ${DOC.copie ? "copie" : "fichier"} <b>${echappe(nomDe(DOC.copie || DOC.original))}</b>`
+    + (DOC.versions.length > 1 ? ` · version ${i + 1}/${DOC.versions.length}` : "");
+  $("#doc-annuler").disabled = i <= 0;
+  $("#doc-retablir").disabled = i >= DOC.versions.length - 1;
+  try {
+    localStorage.setItem("mixeur.travail", JSON.stringify({doc: DOC.id, original: DOC.original, modifie: m,
+      reglages: reglages(), reference: REGLAGES_ENREGISTRES}));
+  } catch (e) {}
+}
+setInterval(majDoc, 800);
+async function versionVoisine(sens) {
+  if (!DOC) return;
+  const i = DOC.versions.indexOf(DOC.courante) + sens;
+  if (i < 0 || i >= DOC.versions.length) return;
+  if ((MT.enAttente() || TX.enAttente()) && !confirm("Abandonner le montage ou les corrections pas encore appliqués ?")) return;
+  MT.oublie(); TX.oublie();
+  try {
+    appliqueDoc(await api("/api/doc/version", {doc: DOC.id, version: DOC.versions[i]}));
+    statut(`Version ${i + 1} sur ${DOC.versions.length} du document.`, "ok");
+  } catch (e) { statut(e.message, "err"); }
+}
+async function enregistrer(nouvelle) {
+  if (!DOC) return statut("Chargez d'abord un morceau.", "err");
+  try {
+    if (!(await appliqueEnAttente())) return;
+    const r = await api("/api/doc/enregistrer", {doc: DOC.id, reglages: reglages(), nouvelle});
+    DOC = r.doc; REGLAGES_ENREGISTRES = JSON.stringify(reglages());
+    const nom = nomDe(r.fichier);
+    statut(r.genre === "mid"
+      ? `Enregistré : ${nom} (notes et réglages), à côté du morceau — l'original n'est pas modifié. Les « Enregistrer » suivants mettent à jour cette copie.`
+      : `Réglages enregistrés : ${nom.replace(/\.midi?$/i, "")}.mix.json (les notes n'ont pas changé).`, "ok");
+    await listeFichiers(); afficheMorceau(); majDoc();
+  } catch (e) { statut(e.message, "err"); }
+}
+// la liste « Morceau » montre le fichier sur lequel on travaille : la copie enregistrée (_v8…) s'il y en a une
+function afficheMorceau() {
+  if (!DOC) return;
+  const f = DOC.copie || DOC.original, sel = $("#fichier");
+  if ([...sel.options].some(o => o.value === f)) sel.value = f;
+  try { localStorage.setItem("mixeur.fichier", f); } catch (e) {}
+}
+$("#doc-enregistrer").addEventListener("click", () => enregistrer(false));
+$("#doc-version").addEventListener("click", () => enregistrer(true));
+$("#doc-annuler").addEventListener("click", () => versionVoisine(-1));
+$("#doc-retablir").addEventListener("click", () => versionVoisine(1));
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); enregistrer(false); }
+});
+window.addEventListener("beforeunload", e => { if (estModifie()) { e.preventDefault(); e.returnValue = ""; } });
+
+// ───── onglets (le montage ou les corrections en cours sont appliqués en quittant l'onglet)
+async function onglet(nom) {
+  if (ONGLET === nom) return;
+  try { if (!(await appliqueEnAttente())) return; } catch (e) { return statut(e.message, "err"); }
+  const avant = ONGLET === "montage" || nom === "montage";      // la barre de transport change de contenu
+  ONGLET = nom;
+  for (const n of ["mixage", "montage", "texte"]) {
+    $("#onglet-" + n).setAttribute("aria-selected", n === nom);
+    $("#panneau-" + n).hidden = n !== nom;
+  }
+  document.querySelectorAll(".mixage-seul").forEach(b => b.hidden = nom !== "mixage");
+  if (MORCEAU && avant) {
+    TR.nouveauMorceau(nom === "montage" ? MT.plan() : MORCEAU);
+    if (!/appliqu/.test(st.textContent))
+      statut(nom === "montage" ? "Montage : la barre de transport joue maintenant le montage (▶ pour l'écouter)."
+                               : "La barre de transport joue maintenant le document.");
+  }
+  if (nom === "montage") MT.dessineTout();
+  if (nom === "texte") TX.affiche();
+  try { localStorage.setItem("mixeur.onglet", nom); } catch (e) {}
+}
+$("#onglet-mixage").addEventListener("click", () => onglet("mixage"));
+$("#onglet-montage").addEventListener("click", () => onglet("montage"));
+$("#onglet-texte").addEventListener("click", () => onglet("texte"));
+
+async function charger() {
+  const f = $("#fichier").value; if (!f) return;
+  if (estModifie() && !confirm("Le document en cours a des modifications non enregistrées. Les abandonner pour charger ce morceau ?")) return;
+  occupe(true); statut("Lecture du morceau…");
+  try {
+    let r;
+    try { r = await api("/api/doc/ouvrir", {fichier: f}); }
+    catch (e) { throw e.message === "introuvable" ? new Error("Le mixeur qui tourne est une ancienne version : cliquez sur « Quitter », relancez-le par le raccourci du bureau, puis Ctrl+F5.") : e; }
+    appliqueDoc(r, {});
+    try { localStorage.setItem("mixeur.fichier", f); } catch (e) {}
+    statut(ONGLET === "montage" ? "Morceau chargé. Montez ses mesures, puis ▶ pour écouter le montage."
+                                : "Morceau chargé. ▶ (ou la barre d'espace) pour écouter ; réglez les pistes pendant l'écoute.", "ok");
+  } catch (e) { statut(e.message, "err"); }
+  occupe(false);
+}
+async function rendu(cible) {
+  if (!MORCEAU) return statut("Chargez d'abord un morceau.", "err");
+  occupe(true);
+  statut(cible !== "ecoute" ? "Export en cours…" : ONGLET === "montage"
+    ? "Préparation de l'écoute du montage… (le premier rendu d'un morceau prend 10 à 20 secondes)"
+    : "Rendu en cours… (le premier rendu d'un morceau prend 10 à 20 secondes)");
+  if (cible === "ecoute") TR.calcul(true);                 // la touche ▶ clignote, « calcul… » à l'afficheur
+  try {
+    if (cible === "ecoute") {
+      const r = await demandeEcoute();
+      TR.charge(r.url);
+      statut("Prêt : " + bilan(r) + " Les modifications suivantes s'appliquent toutes seules pendant l'écoute.", "ok");
+      chargeNiveaux();
+    } else {
+      // l'export va à côté du morceau (ou de sa copie enregistrée), avec le document tel qu'il est maintenant
+      const r = await api("/api/rendu", {fichier: MORCEAU.chemin, cible, base: DOC && (DOC.copie || DOC.original), ...reglages()});
+      statut(`Exporté : ${r.fichier}`, "ok");
+    }
+  } catch (e) { statut(e.message, "err"); }
+  TR.calcul(false);
+  occupe(false); cache();
+}
+async function cache() { try { const c = await api("/api/cache"); $("#vider").textContent = `Vider le cache (${c.mo} Mo)`; } catch (e) {} }
+async function listeFichiers() {
+  const fichiers = await api("/api/fichiers"), sel = $("#fichier"), avant = sel.value;
+  sel.innerHTML = fichiers.map(f => `<option value="${f.chemin.replace(/"/g, "&quot;")}">${f.affiche}</option>`).join("");
+  if (fichiers.some(f => f.chemin === avant)) sel.value = avant;
+  return fichiers;
+}
+
+$("#charger").addEventListener("click", charger);
+$("#mp3").addEventListener("click", () => rendu("mp3"));
+$("#wav").addEventListener("click", () => rendu("wav"));
+$("#vider").addEventListener("click", async () => { try { await api("/api/vider_cache", {}); statut("Cache vidé.", "ok"); cache(); } catch (e) { statut(e.message, "err"); } });
+$("#quitter").addEventListener("click", async () => {
+  if (estModifie() && !confirm("Des modifications ne sont pas enregistrées (elles seront proposées à la reprise). Quitter quand même ?")) return;
+  try { await api("/api/quitter", {}); } catch (e) {} occupe(true); statut("Mixeur arrêté. Vous pouvez fermer cet onglet.");
+});
+
+(async () => {
+  try {
+    SONS = await api("/api/sons");
+    const fichiers = await listeFichiers();
+    let dernier = null, mode = null, travail = null;
+    try {
+      dernier = localStorage.getItem("mixeur.fichier"); mode = localStorage.getItem("mixeur.onglet");
+      travail = JSON.parse(localStorage.getItem("mixeur.travail") || "null");
+    } catch (e) {}
+    const q = new URLSearchParams(location.search);
+    const demande = q.get("f");                                              // ?f=chemin : ouvre ce morceau
+    if (demande && fichiers.some(f => f.chemin === demande)) dernier = demande;
+    if (q.get("onglet")) mode = q.get("onglet");                              // ?onglet=montage
+    if (mode === "montage" || mode === "texte") await onglet(mode);
+    statut(`${fichiers.length} morceaux trouvés · ${SONS.gu.length} sons GeneralUser · ${SONS.sf.length} sons sfizz.`);
+    cache();
+    // un travail non enregistré est proposé à la reprise
+    if (travail && travail.modifie && !demande) {
+      try {
+        const r = await api("/api/doc/reprendre", {doc: travail.doc});
+        if (confirm(`Reprendre le travail non enregistré sur « ${nomDe(r.doc.copie || r.doc.original)} » ?`)) {
+          appliqueDoc(r, {reglages: travail.reglages, reference: travail.reference});
+          afficheMorceau();
+          return statut("Travail repris là où vous l'aviez laissé (pas encore enregistré).", "ok");
+        }
+      } catch (e) {}
+    }
+    if (dernier && fichiers.some(f => f.chemin === dernier)) { $("#fichier").value = dernier; charger(); }   // reprend le dernier morceau
+  } catch (e) { statut("Le mixeur ne répond pas : relancez-le depuis le raccourci du bureau. (" + e.message + ")", "err"); }
+})();

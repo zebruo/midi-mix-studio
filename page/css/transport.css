@@ -1,0 +1,39 @@
+/* Mixeur MIDI — barre de transport façon rack (Reason) */
+.rack{grid-column:1/-1;background:linear-gradient(#3a3d43,#2a2c31 55%,#232529);border:1px solid #4a4e57;border-radius:5px;
+  box-shadow:inset 0 1px 0 #555a64,0 2px 6px #0008;padding:10px 14px 12px;display:flex;flex-direction:column;gap:10px;position:relative}
+.rack::before,.rack::after{content:"";position:absolute;top:50%;width:9px;height:9px;margin-top:-5px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#c9ccd2,#5b5f67 60%,#2b2d31);box-shadow:0 0 0 1px #111}
+.rack::before{left:5px}.rack::after{right:5px}
+.rangee{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px 14px;padding-inline:10px}
+.bloc{display:flex;flex-direction:column;gap:4px}
+.etiq{font:600 10px var(--display);letter-spacing:.16em;text-transform:uppercase;color:#a9adb5}
+.touches{display:flex;gap:4px}
+.touche{width:40px;height:34px;padding:0;border-radius:3px;border:1px solid #15161a;background:linear-gradient(#5a5e66,#3b3e45);
+  color:#e9e6dd;font:700 14px var(--body);box-shadow:inset 0 1px 0 #7a7f88,0 1px 0 #000;display:grid;place-items:center}
+.touche:active{background:linear-gradient(#34363c,#4a4e56)}
+.touche[aria-pressed=true]{background:linear-gradient(#ffb64a,#d98a1e);color:#1b1d21;box-shadow:inset 0 1px 0 #ffd28c,0 0 10px #f0a83c88}
+.touche.lecture[aria-pressed=true]{background:linear-gradient(#8fe08f,#3fa04a);box-shadow:inset 0 1px 0 #c4f2c4,0 0 10px #6ccf6c88}
+.touche.lecture.calcul{animation:calcul .9s ease-in-out infinite}
+@keyframes calcul{0%,100%{background:linear-gradient(#5a5e66,#3b3e45);box-shadow:inset 0 1px 0 #7a7f88,0 1px 0 #000}
+  50%{background:linear-gradient(#ffb64a,#d98a1e);color:#1b1d21;box-shadow:inset 0 1px 0 #ffd28c,0 0 12px #f0a83c99}}
+.touche svg{width:16px;height:16px;fill:currentColor}
+.lcd{background:#0a0b0c;border:1px solid #000;border-radius:3px;box-shadow:inset 0 2px 6px #000,0 1px 0 #555a64;
+  padding:5px 10px 4px;font:700 22px/1 var(--mono);color:#ffae3c;text-shadow:0 0 6px #ff9a1a88;letter-spacing:.04em;
+  font-variant-numeric:tabular-nums;white-space:pre;min-height:34px;display:flex;align-items:center}
+.lcd.vert{color:#7dff9a;text-shadow:0 0 6px #3fe06a77}
+.lcd.petit{font-size:15px}
+.lcd small{font-size:11px;color:#b9772a;margin-left:6px;text-shadow:none}
+.locs{display:flex;gap:4px;align-items:center}
+.locs .lcd{font-size:15px;min-width:118px}
+.mini{height:34px;padding:0 9px;font:700 11px var(--display);letter-spacing:.08em}
+.vu{display:flex;flex-direction:column;gap:4px;justify-content:center;min-width:170px}
+.vu .canal{display:flex;align-items:center;gap:6px;font:600 10px var(--display);color:#a9adb5}
+.vu .barre{position:relative;height:9px;flex:1;background:#0a0b0c;border:1px solid #000;border-radius:2px;overflow:hidden}
+.vu .barre i{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,#3fd06a 0 70%,#e8d23a 70% 88%,#ff4a3a 88%)}
+.vu .barre b{position:absolute;top:0;bottom:0;width:2px;background:#fff;left:0;opacity:.85}
+.ecoute{display:flex;align-items:center;gap:6px}
+.ecoute input{width:90px;accent-color:#ffae3c}
+.ligne{position:relative;height:40px;margin-inline:10px;background:#0a0b0c;border:1px solid #000;border-radius:3px;
+  box-shadow:inset 0 2px 6px #000;cursor:pointer;touch-action:none}
+.ligne canvas{position:absolute;inset:0;width:100%;height:100%}
+.droite-rack{margin-left:auto;display:flex;gap:14px;align-items:stretch}

@@ -1,0 +1,113 @@
+MIXEUR MIDI
+===========
+
+Lancer   : raccourci « Mixeur MIDI » sur le bureau (ouvre la console dans le navigateur,
+           à l'adresse http://localhost:8765, accessible seulement depuis ce PC).
+Arrêter  : bouton « Quitter » de la console (ou fermer simplement : le mixeur reste en
+           arrière-plan et le raccourci rouvre la même console).
+
+Le document et l'enregistrement
+-------------------------------
+- « Charger » ouvre le morceau dans une copie de travail : les trois onglets (Mixage,
+  Montage, Texte) travaillent sur ce même document. Rien n'est écrit à côté du morceau
+  avant « Enregistrer ».
+- En haut : « ● modifié » ou « ✓ enregistré », le fichier (original ou copie) et la version.
+- « Enregistrer » (ou Ctrl+S) :
+    · seuls les réglages de mixage ont changé → ils vont dans le .mix.json du morceau ;
+    · les notes ou la structure ont changé (montage, retouches, texte) → une copie est créée
+      avec un nom automatique (musique_2008.mid → musique_2008_v2.mid, Garmisch_2008_v2.mid →
+      Garmisch_2008_v3.mid, toujours le premier numéro libre), avec ses réglages ; les
+      « Enregistrer » suivants mettent à jour cette copie. L'original n'est jamais remplacé.
+- « Nouvelle version » : enregistre dans une nouvelle copie (numéro suivant).
+- Un montage ou des corrections du texte sont appliqués au document en quittant leur onglet
+  (ou avec « Enregistrer ») ; chaque application crée une version : « ↶ version » / « ↷ »
+  reviennent en arrière ou en avant. Un texte avec des erreurs empêche de quitter l'onglet.
+- Si la page est fermée sans enregistrer, le travail est proposé à la reprise au prochain
+  lancement (les travaux de plus de 7 jours sont effacés).
+
+Onglet « Mixage »
+-----------------
+1. Choisir un morceau (.mid) dans la liste, puis « Charger ».
+   La console reprend automatiquement le dernier morceau utilisé.
+2. Pour chaque piste : moteur (FluidSynth = GeneralUser, intimiste ; sfizz = lyrique),
+   son, volume (70 = niveau d'origine), position gauche/droite, M = muet, S = solo.
+   « Son d'origine » garde les instruments prévus dans le fichier.
+   « Chercher un son » filtre toutes les listes (ex. cello, flûte, piano).
+   Colonne « Niveau » : vumètre de chaque piste pendant l'écoute (avec son volume ; muet et
+   solo agissent tout de suite).
+   Un canal qui change d'instrument en cours de morceau (ex. clarinette puis piano sur le
+   canal 8) donne une ligne par instrument, chacune rendue avec son instrument dès le début.
+3. Écouter : ▶ dans la barre de transport (ou la barre d'espace). La première fois, les
+   pistes sont calculées, 4 à la fois (10 à 20 s ; la touche ▶ clignote et « calcul… »
+   s'affiche), puis la lecture démarre. Ensuite, chaque réglage (solo, muet, volume, pan,
+   son, écho) met le mixage à jour tout seul en 2 à 4 secondes, et la lecture reprend au
+   même endroit. Une piste n'est recalculée que si son contenu ou son son change.
+4. « Exporter MP3 / WAV » : le document tel qu'il est, à côté du morceau (ou de sa copie)
+   (ex. musique_2008_mix.mp3, puis _mix_2… sans jamais écraser).
+   Volume normalisé exactement à la valeur « Volume général » (-16 LUFS = films).
+   Fin du morceau : 4 s de résonance après la dernière note ; « Fondu de fin » (0 à 15 s)
+   fait baisser le volume régulièrement jusqu'au silence.
+   Silences : sfizz garde parfois une note à mi-volume (surtout les violons VPO dans leur grave) ;
+   dans chaque silence d'une piste sfizz (0,6 s ou plus), le son s'éteint donc en douceur après
+   la résonance naturelle. Pour une partie d'alto, préférer les altos VPO aux violons.
+
+Onglet « Montage » (mesures entières, toutes les pistes ensemble)
+-----------------------------------------------------------------
+- Bande « Original » (le document en arrivant dans l'onglet) : glisser pour choisir des
+  mesures à copier. Bande « Montage » : glisser pour sélectionner (Maj+clic pour étendre),
+  glisser une sélection pour la déplacer, double-clic pour s'y placer à l'écoute.
+- Couper (Ctrl+X), Copier (Ctrl+C), Coller avant (Ctrl+V) / après (Ctrl+Maj+V),
+  Dupliquer (Ctrl+D), Supprimer (Suppr), Garder la sélection, Annuler (Ctrl+Z),
+  Rétablir (Ctrl+Y), Repartir de l'original.
+- La grille montre quelles pistes jouent dans chaque mesure (couleur = moteur, intensité =
+  nombre de notes).
+- Détail : les notes des mesures sélectionnées (16 au plus), piste par piste ; survol = nom de
+  la note (Do3 = do du milieu), vélocité, position, durée. Sur des mesures du MONTAGE, les
+  notes se modifient (cette copie de la mesure seulement, marquée ✎) : clic = choisir,
+  glisser = déplacer, bord droit = durée, double-clic = ajouter, Suppr = supprimer,
+  ↑/↓ = demi-ton, Maj+↑/↓ = octave ; vélocité par le curseur ; « Notes d'origine ».
+- ▶ : aperçu rapide du montage ; chaque modification se met à jour toute seule.
+- En quittant l'onglet (ou avec « Enregistrer »), le montage est appliqué au document avec
+  des raccords propres (notes qui résonnent au plus un temps, attaques en avance recalées,
+  instruments, tempo et chiffrage rétablis, pédale relâchée).
+
+Onglet « Texte » (le document en texte commenté)
+------------------------------------------------
+- Tableau : une ligne par événement (position mesure.temps.tick, « ≈ 3.1 » = attaque un peu
+  en avance, piste, canal, note, durée, vélocité, instrument, contrôleur, tempo…), dans
+  l'ordre du temps ; filtres par piste, mesures, type, recherche. Chaque cellule se modifie ;
+  ⧉ dupliquer, + ajouter une note, ✕ supprimer ; « Cocher tout le filtre » (toutes les pages) ;
+  lignes cochées : vélocité ±10, transposer, décaler d'un temps, durée ± 1/8 de temps,
+  « Lié » (chaque note dure jusqu'à la suivante de sa piste, moins un petit souffle),
+  « Caler sur le temps » (attaques un peu en avance ou en retard ramenées pile sur le temps,
+  fin de note inchangée), supprimer.
+- Texte brut : le texte complet (mode d'emploi en tête), aller à une ligne ou une mesure,
+  rechercher / remplacer (Suivant, Remplacer, Tout remplacer ; ex. « tempo 120 » → « tempo 100 »).
+- Vérification continue (erreurs en haut, clic = aller à la ligne), Annuler / Rétablir,
+  « Abandonner mes corrections ». Les corrections sont appliquées au document en quittant
+  l'onglet (ou avec « Enregistrer »).
+
+Fichiers
+--------
+mixeur.py      le programme (serveur, rendu, mixage)
+travail.py     les documents de travail (versions, enregistrement, noms automatiques)
+montage.py     le banc de montage (découpe en mesures, raccords, aperçu audio)
+midi_texte.py  .mid ⇄ texte commenté (onglet Texte) ; marche aussi seul, dans le terminal
+               de VS Code :
+                 python "<dossier du mixeur>\midi_texte.py" "morceau.mid"
+                   → morceau.mid.txt (jamais d'écrasement : morceau_2.mid.txt…)
+                 python "<dossier du mixeur>\midi_texte.py" "morceau.mid.txt"
+                   → morceau_texte.mid (puis _texte_2…) ; fautes signalées par n° de ligne
+page\          la console : index.html, css\ (common, console, transport, montage, texte),
+               js\ (outils, pistes, transport, montage, texte, app)
+config.json    chemins des moteurs et des banques, dossiers où chercher les morceaux
+               (« racines »), taille maximale du cache, volumes de base des banques sfizz,
+               nombre de rendus simultanés ; propre à ce PC, non versionné
+config.exemple.json  modèle de config.json (à copier en config.json et adapter les chemins)
+cache\         pistes calculées (FLAC), écoutes, travaux en cours (cache\travail) — plafonné
+               à 2 Go ; « Vider le cache » n'efface pas les travaux en cours
+
+Pour tout enlever : supprimer ce dossier et le raccourci du bureau.
+
+À venir : automation du volume, pré-écoute d'un son, transposition, tempo, remplacement de
+la musique d'un film. Plus tard : version .exe portable.
