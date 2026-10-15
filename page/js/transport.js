@@ -35,7 +35,7 @@ const TR = (() => {
   function etatLecture() {
     const joue = attente ? reprendre : !a.paused;     // pendant un changement de mixage, la touche reste allumée
     $("#t-play").setAttribute("aria-pressed", joue);
-    $("#ico-play").innerHTML = joue ? '<path d="M3 2h4v12H3zM9 2h4v12H9z"/>' : '<path d="M4 2l10 6-10 6z"/>';
+    icone($("#ico-play"), joue ? "pause" : "lecture");          // icones/pause.svg, icones/lecture.svg
   }
   async function lecture() {
     if (enCalcul) return;                                                  // déjà en train de calculer
@@ -176,6 +176,7 @@ const TR = (() => {
       R = Math.min(R, duree); L = Math.min(L, R); affLoc();
     },
     mesure: () => duree ? mesureA(ici()) : -1,          // position en mesures (0 = début de la mesure 1)
+    instant: () => ici(),                               // position en secondes (la tête de lecture a-t-elle bougé ?)
     boucleSur(f) { mesuresChoisies = f; },             // f() → {de, a} (mesures sélectionnées, 1 = première) ou null
     vaMesure: m => va(tempsA(m)),
     charge(url) {   // nouveau mixage : on reprend à la même position, et on rejoue si on jouait

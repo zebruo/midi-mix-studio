@@ -26,7 +26,7 @@ L'application tourne sur le PC (`http://localhost:8765`, accessible seulement de
 
 **Document de travail**
 - Les trois onglets travaillent sur le même document, avec Annuler / Rétablir et des versions
-- L'original n'est jamais remplacé : les notes modifiées sont enregistrées dans une copie `_v2`, `_v3`… ; les réglages seuls dans un `.mix.json`
+- « Enregistrer » remplace le fichier ouvert (son ancienne version est gardée dans un dossier `sauvegardes` à côté du morceau) ; « Enregistrer une copie » crée `_v2`, `_v3`… ; les réglages seuls vont dans un `.mix.json`
 
 ## Installation (Windows)
 
@@ -76,7 +76,8 @@ L'aller-retour est exact, et aucun fichier n'est jamais écrasé.
 | `montage.py` | découpe en mesures, assemblage du montage, raccords |
 | `travail.py` | documents de travail : versions, enregistrement, noms automatiques |
 | `midi_texte.py` | conversion `.mid` ⇄ texte commenté |
-| `page/` | la console (HTML, CSS, JavaScript, icônes) |
+| `retouches.py` | retouches d'un morceau fabriqué par un script : les reporter dans une nouvelle version du script |
+| `page/` | la console (HTML, CSS, JavaScript) ; `page/icones/` : les icônes des boutons, une par fichier SVG |
 | `config.exemple.json` | modèle de `config.json` |
 | `VERSION.txt` | numéro de version de l'application |
 | `LISEZMOI.txt` | mode d'emploi détaillé, onglet par onglet |

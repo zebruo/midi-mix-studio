@@ -15,13 +15,17 @@ Le document et l'enregistrement
   avant « Enregistrer ».
 - En haut : « ● modifié » ou « ✓ enregistré », le fichier (original ou copie) et la version.
 - « Enregistrer » (ou Ctrl+S) :
-    · seuls les réglages de mixage ont changé → ils vont dans le .mix.json du morceau ;
-    · les notes ou la structure ont changé (montage, retouches, texte) → une copie est créée
-      avec un nom automatique (musique_2008.mid → musique_2008_v2.mid, Garmisch_2008_v2.mid →
-      Garmisch_2008_v3.mid, toujours le premier numéro libre), avec ses réglages ; les
-      « Enregistrer » suivants mettent à jour cette copie. L'original n'est jamais remplacé.
+    · seuls les réglages de mixage ont changé → ils vont dans le .mix.json du fichier ouvert ;
+    · les notes ou la structure ont changé (montage, retouches, événements) → le fichier
+      ouvert est remplacé, avec ses réglages. Son ancienne version est d'abord gardée dans
+      un dossier « sauvegardes » à côté du morceau (ex. 2008\sauvegardes\musique_2008_
+      2026-10-15_15-47-29.mid ; les 20 dernières de chaque fichier, 60 jours au plus). La liste
+      des morceaux ignore ces dossiers ; pour revenir à une version, recopier le fichier voulu
+      à côté du morceau (sous son nom).
 - « Enregistrer » est grisé quand le fichier est à jour.
-- « Enregistrer une copie » : enregistre dans une nouvelle copie (numéro suivant).
+- « Enregistrer une copie » : enregistre dans une nouvelle copie, au premier numéro libre
+  (musique_2008.mid → musique_2008_v2.mid, Garmisch_2008_v2.mid → Garmisch_2008_v3.mid) ;
+  les « Enregistrer » suivants mettent à jour cette copie.
 - Un montage ou des corrections d'événements sont appliqués au document en quittant leur onglet
   (ou avec « Enregistrer ») ; chaque application crée une version. « ↶ Annuler » /
   « ↷ Rétablir » (Ctrl+Z / Ctrl+Y), seuls boutons de ce genre : ils défont d'abord, un pas
@@ -46,6 +50,10 @@ Onglet « Mixage »
    solo agissent tout de suite).
    Un canal qui change d'instrument en cours de morceau (ex. clarinette puis piano sur le
    canal 8) donne une ligne par instrument, chacune rendue avec son instrument dès le début.
+   Le bloc « Calcul » de la barre de transport, toujours visible, dit où en est le son :
+   « prêt » ; pendant un calcul (écoute, mise à jour, export…), un anneau qui tourne et le
+   temps écoulé ; ensuite « ✓ à jour » et la durée du calcul pendant 5 s, puis « prêt » ;
+   « échec » si le calcul n'a pas abouti (le message est en bas de la page).
 3. Écouter : ▶ dans la barre de transport (ou la barre d'espace). La première fois, les
    pistes sont calculées, 4 à la fois (10 à 20 s ; la touche ▶ clignote et « calcul… »
    s'affiche), puis la lecture démarre. Ensuite, chaque réglage (solo, muet, volume, pan,
@@ -56,9 +64,10 @@ Onglet « Mixage »
    Volume normalisé exactement à la valeur « Volume général » (-16 LUFS = films).
    Fin du morceau : 4 s de résonance après la dernière note ; « Fondu de fin » (0 à 15 s)
    fait baisser le volume régulièrement jusqu'au silence.
-   Silences : sfizz garde parfois une note à mi-volume (surtout les violons VPO dans leur grave) ;
-   dans chaque silence d'une piste sfizz (0,6 s ou plus), le son s'éteint donc en douceur après
-   la résonance naturelle. Pour une partie d'alto, préférer les altos VPO aux violons.
+   Notes bloquées : sfizz garde parfois à mi-volume une note rejouée pendant que la précédente
+   s'éteint. Les notes répétées d'une piste sfizz sont donc rendues séparément (jusqu'à 4 rendus
+   additionnés), et dans chaque silence (0,6 s ou plus) le son s'éteint en douceur après la
+   résonance naturelle. Pour une partie d'alto, préférer les altos VPO aux violons.
 
 Onglet « Montage » (mesures entières, toutes les pistes ensemble)
 -----------------------------------------------------------------
@@ -78,12 +87,24 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
   notes se modifient (cette copie de la mesure seulement, marquée ✎) : clic = choisir,
   glisser = déplacer, bord droit = durée, double-clic = ajouter, Suppr = supprimer,
   ↑/↓ = demi-ton, Maj+↑/↓ = octave ; vélocité par le curseur ; « Notes d'origine ».
+  Dupliquer : Ctrl + glisser une note (ou les notes choisies) en laisse une copie ; Ctrl+D
+  copie les notes choisies juste après elles ; Ctrl+C / Ctrl+V : coller à la tête de lecture
+  (ou juste après la sélection). « Fusionner » : les notes choisies de même hauteur n'en font
+  plus qu'une, de la première à la fin de la dernière (choisir seulement celles à réunir).
+  (Dans le détail, Ctrl+C / V / D agissent sur les notes ; sur les bandes, sur les mesures.)
   En haut à droite du détail : « suivre la lecture » (tête de lecture + flèche ; pendant
   l'écoute, le détail passe aux mesures suivantes) et ✕ pour le fermer (ou Échap).
-- ▶ : aperçu rapide du montage ; chaque modification se met à jour toute seule.
+- ▶ : aperçu rapide du montage ; chaque modification se met à jour toute seule. Après une
+  retouche de notes, seules quelques secondes autour des mesures retouchées sont recalculées
+  (3 à 5 s au lieu de toute la piste), puis fondues dans la piste déjà calculée. Pendant
+  une pause dans les retouches, le mixeur prépare en arrière-plan le calcul exact des pistes
+  retouchées : en revenant au Mixage, l'écoute du document est prête en 2 s environ.
 - En quittant l'onglet (ou avec « Enregistrer »), le montage est appliqué au document avec
   des raccords propres (notes qui résonnent au plus un temps, attaques en avance recalées,
   instruments, tempo et chiffrage rétablis, pédale relâchée).
+- Repères au-dessus des mesures du montage : point blanc = notes retouchées dans le montage
+  en cours ; cercle blanc = mesure déjà modifiée dans le document (montage appliqué en
+  changeant d'onglet) mais pas encore enregistrée. Après « Enregistrer », plus de cercle.
 
 Onglet « Événements » (liste des événements MIDI, en tableau ou en texte commenté)
 ---------------------------------------------------------------------------------
@@ -93,6 +114,7 @@ Onglet « Événements » (liste des événements MIDI, en tableau ou en texte c
   ⧉ dupliquer, + ajouter une note, ✕ supprimer ; « Cocher tout le filtre » (toutes les pages) ;
   lignes cochées : vélocité ±10, transposer, décaler d'un temps, durée ± 1/8 de temps,
   « Lié » (chaque note dure jusqu'à la suivante de sa piste, moins un petit souffle),
+  « Fusionner » (les notes cochées de même hauteur, même piste, n'en font plus qu'une),
   « Caler sur le temps » (attaques un peu en avance ou en retard ramenées pile sur le temps,
   fin de note inchangée), supprimer.
 - Texte brut : le texte complet (mode d'emploi en tête), aller à une ligne ou une mesure,
@@ -100,6 +122,20 @@ Onglet « Événements » (liste des événements MIDI, en tableau ou en texte c
 - Vérification continue (erreurs en haut, clic = aller à la ligne), « Abandonner mes
   corrections » ; Annuler / Rétablir : boutons du haut de la page. Les corrections sont appliquées au document en quittant
   l'onglet (ou avec « Enregistrer »).
+
+Morceaux fabriqués par un script (« recette »)
+--------------------------------------------
+Un script Python peut fabriquer un morceau (ex. « AF017 ps25 arrangement.py » : accords,
+instruments, tempos…). Si ce morceau est retouché dans le mixeur, l'icône </> (à côté des
+disquettes, visible seulement pour un tel morceau) écrit une nouvelle version du script à côté
+de l'original, ex. « AF017 ps25 arrangement v5.py » : même recette + un bloc RETOUCHES (une
+ligne commentée par retouche : note ajoutée, supprimée, durée, vélocité…) + les réglages de
+mixage. Le mixeur vérifie que ce script, relancé, redonne exactement le morceau. On peut ensuite
+changer la recette (un instrument, un tempo…) : les retouches sont réappliquées par-dessus
+(une retouche dont la note a disparu de la recette est signalée et ignorée). Jamais d'écrasement.
+Convention d'un tel script : une ligne PRODUIT = "début du nom des fichiers produits", les
+options --sortie <fichier.mid> et --sans-retouches, et le bloc RETOUCHES entre ses deux lignes
+de repère (voir « AF017 ps25 arrangement.py »).
 
 Fichiers
 --------
@@ -109,6 +145,7 @@ VERSION.txt    numéro de version (affiché en haut de la console) : MAJEUR.MINE
                qui tourne n'a pas le même numéro que ce fichier, la console demande de le relancer.
 mixeur.py      le programme (serveur, rendu, mixage)
 travail.py     les documents de travail (versions, enregistrement, noms automatiques)
+retouches.py   retouches d'un morceau fabriqué par un script : comparer, réappliquer, écrire en Python
 montage.py     le banc de montage (découpe en mesures, raccords, aperçu audio)
 midi_texte.py  .mid ⇄ texte commenté (onglet Événements) ; marche aussi seul, dans le terminal
                de VS Code :
@@ -117,14 +154,18 @@ midi_texte.py  .mid ⇄ texte commenté (onglet Événements) ; marche aussi seu
                  python "<dossier du mixeur>\midi_texte.py" "morceau.mid.txt"
                    → morceau_texte.mid (puis _texte_2…) ; fautes signalées par n° de ligne
 page\          la console : favicon.ico et icone.png (icône de l'application, aussi celle du
-               raccourci du bureau), index.html, css\ (common, console, sons, transport, montage,
+               raccourci du bureau), icones\ (les icônes des boutons, une par fichier .svg :
+               les modifier là, la page les reprend au chargement), index.html, css\ (common, console, sons, transport, montage,
                texte), js\ (outils, sons, pistes, transport, montage, texte, app)
 config.json    chemins des moteurs et des banques, dossiers où chercher les morceaux
                (« racines »), taille maximale du cache, volumes de base des banques sfizz,
-               nombre de rendus simultanés ; propre à ce PC, non versionné
+               nombre de moteurs (sfizz, FluidSynth) lancés en même temps, 4 par défaut : à
+               baisser (2) sur un PC qui a peu de mémoire ; propre à ce PC, non versionné
 config.exemple.json  modèle de config.json (à copier en config.json et adapter les chemins)
 cache\         pistes calculées (FLAC), écoutes, travaux en cours (cache\travail) — plafonné
-               à 2 Go ; « Vider le cache » n'efface pas les travaux en cours
+               à 2 Go (cache_max_mo), dont 500 Mo au plus pour les écoutes (cache_ecoutes_mo) :
+               les écoutes partent en premier, les pistes calculées en dernier ; « Vider le
+               cache » n'efface pas les travaux en cours
 
 Pour tout enlever : supprimer ce dossier et le raccourci du bureau.
 

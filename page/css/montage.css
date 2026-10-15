@@ -32,7 +32,15 @@
 .mt-edition[hidden]{display:none}
 .mt-edition button,.mt-edition select{padding:5px 9px;font-size:12px}
 .mt-edition input[type=range]{width:110px}
-.mt-notes-info{font:12px var(--mono);color:var(--text);min-width:200px}
+.mt-detail-gauche{display:flex;align-items:center;gap:8px;min-width:0}   /* titre du détail + « i » juste après */
+.mt-aide-notes{display:inline-flex;color:var(--muted);cursor:help}
+.mt-aide-notes[hidden]{display:none}
+.mt-aide-notes:hover,.mt-aide-notes:focus-visible{color:var(--text)}
+.mt-aide-notes svg{width:16px;height:16px;fill:currentColor;display:block}
+.mt-note-choisie{font:600 12.5px var(--mono);color:var(--text);min-width:5ch}
+.mt-note-choisie:empty{display:none}
+.mt-vel{display:inline-flex;align-items:center;gap:6px}           /* curseur de vélocité et son chiffre, collés */
+.mt-vel .val{width:3ch;text-align:left}
 .mt-detail-zone canvas.edition{cursor:crosshair}
 .mt-detail-zone[hidden]{display:none}
 .mt-detail-zone{position:relative;background:#141619;border:1px solid #000;border-radius:4px;padding:8px}

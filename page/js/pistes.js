@@ -52,7 +52,7 @@ let NIVEAUX = null;
 async function chargeNiveaux() {
   if (!MORCEAU || ONGLET !== "mixage") return;
   const m = MORCEAU;
-  try { const r = await api("/api/niveaux", {fichier: m.chemin, ...reglages()}); if (MORCEAU === m) NIVEAUX = r; } catch (e) {}
+  try { const r = await calcul(api("/api/niveaux", {fichier: m.chemin, ...reglages()})); if (MORCEAU === m) NIVEAUX = r; } catch (e) {}
 }
 (function vumetres() {
   requestAnimationFrame(vumetres);

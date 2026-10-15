@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # lancé avec �
 import montage  # noqa: E402
 import midi_texte  # noqa: E402   (.mid ⇄ texte commenté, aussi utilisable seul en ligne de commande)
 import travail  # noqa: E402      (documents de travail : versions, enregistrement)
+import retouches  # noqa: E402    (retouches d'un morceau fabriqué par un script, reportées dans le script)
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(ICI, "config.json"), encoding="utf-8"))
@@ -53,7 +54,7 @@ for d in (PISTES, ECOUTE, MONTAGES):
 TRAVAUX = travail.Travail(os.path.join(CACHE, "travail"))   # documents de travail (jamais vidés par « Vider le cache »)
 VERROU = threading.Lock()
 QUEUE = 4.0          # secondes rendues après la dernière note (résonance, écho de salle)
-RENDU = "tempo-fixe+silences4"  # version de la façon de rendre les pistes : la changer invalide les écoutes en cache
+RENDU = "tempo-fixe+silences4+repetitions"  # version de la façon de rendre les pistes : la changer invalide les écoutes en cache
 SANS_FENETRE = 0x08000000 if os.name == "nt" else 0       # pas de fenêtre noire pour les outils
 
 GM_FR = midi_texte.GM_FR      # noms français des 128 instruments General MIDI
@@ -158,7 +159,8 @@ def liste_fichiers():
     res = []
     for r in CONFIG["racines"]:
         for racine, dossiers, fichiers in os.walk(r):
-            dossiers[:] = [d for d in dossiers if not d.startswith(".")]
+            # ni dossiers cachés, ni les sauvegardes faites par « Enregistrer » (travail.DOSSIER_SAUVEGARDES)
+            dossiers[:] = [d for d in dossiers if not d.startswith(".") and d.lower() != travail.DOSSIER_SAUVEGARDES]
             for f in fichiers:
                 if f.lower().endswith((".mid", ".midi")):
                     p = os.path.join(racine, f)
@@ -407,54 +409,157 @@ def fondus_silences(seule, resonance=2.0, cordes=False):
     return ",".join(filtres)
 
 
+def separe_repetitions(seule, liberation=2.0, maxi=4):
+    """sfizz garde à mi-volume, parfois jusqu'à la fin du morceau, une note rejouée pendant que la précédente
+    s'éteint (ex. deux Do4 presque liés au psaume 25, mesure 45 du _v8). On répartit donc les notes entre plusieurs
+    rendus de la même piste : une note de même hauteur rejouée moins de `liberation` s après la fin de la précédente
+    part dans un autre rendu ; le mixeur additionne ensuite les rendus. → liste de MidiFile (un seul si inutile).
+    `seule` est une piste à tempo fixe (aplatit_tempo) : 1 temps = 0,5 s."""
+    sec = lambda k: k / seule.ticks_per_beat * 0.5
+    ev = list(montage._absolus(seule.tracks[0]))
+    fins = [{}]                                    # par rendu : fin (s) de la dernière note de chaque hauteur
+    flux = {}
+    for d, f, on, off in sorted(montage._notes(ev)[0], key=lambda n: n[0]):
+        k = next((i for i, fi in enumerate(fins) if sec(d) - fi.get(on.note, -99) > liberation), None)
+        if k is None:
+            if len(fins) < maxi:
+                fins.append({})
+                k = len(fins) - 1
+            else:                                  # cas extrême : le rendu où la note est la plus ancienne
+                k = min(range(len(fins)), key=lambda i: fins[i].get(on.note, -99))
+        flux[id(on)] = flux[id(off)] = k
+        fins[k][on.note] = sec(f)
+    if len(fins) == 1:
+        return [seule]
+    rendus = []
+    for k in range(len(fins)):                     # chaque rendu garde tout le reste (instrument, volume…)
+        tr, prec = mido.MidiTrack(), 0
+        for t, m in ev:
+            if m.type in ("note_on", "note_off") and flux.get(id(m), 0) != k:
+                continue
+            tr.append(m.copy(time=t - prec))
+            prec = t
+        mf = mido.MidiFile(ticks_per_beat=seule.ticks_per_beat)
+        mf.tracks.append(tr)
+        rendus.append(mf)
+    return rendus
+
+
 def rend_piste(chemin, canal, son, prog=None):
     """Renvoie (fichier audio, recalculé ?) ; utilise le cache si la piste n'a pas changé.
     Une piste est reconnue à son CONTENU (ses notes, son instrument, le son choisi) : une correction qui ne touche
     qu'une piste, ou une nouvelle version du document, ne fait recalculer que les pistes réellement modifiées.
     Les pistes sont gardées en FLAC (sans perte, ~4 fois plus léger que le WAV des moteurs)."""
-    seule = piste_seule(chemin, canal, son, prog)
+    return rend_midi(piste_seule(chemin, canal, son, prog), son)
+
+
+# Limite commune à tous les moteurs (sfizz, FluidSynth) lancés en même temps, quel que soit le calcul qui les
+# demande (pistes, rendus séparés des notes répétées, fenêtres du montage) : chaque moteur charge ses échantillons
+# en mémoire. « rendus_simultanes » (config.json, 4 par défaut) se baisse sur un PC modeste.
+MOTEURS = threading.BoundedSemaphore(max(1, int(CONFIG.get("rendus_simultanes", 4))))
+
+
+def lance_moteur(commande):
+    with MOTEURS:
+        subprocess.run(commande, check=True, capture_output=True, timeout=600, creationflags=SANS_FENETRE)
+
+
+def rend_midi(seule, son):
+    """Rendu audio (FLAC du cache) d'une piste déjà réduite à tempo fixe (piste_seule, ou un extrait de piste
+    pour l'aperçu du montage) → (fichier, recalculé ?). Le cache la reconnaît à son contenu."""
     tampon = io.BytesIO()
     seule.save(file=tampon)
     cle = hashlib.sha1(tampon.getvalue() + f"|{son}|contenu|{RENDU}".encode()).hexdigest()[:20]
     flac = os.path.join(PISTES, cle + ".flac")
-    if deja_calcule(flac):
-        return flac, False
-    wav = os.path.join(PISTES, cle + ".tmp.wav")
-    tmp_mid = os.path.join(PISTES, cle + ".mid")
-    with open(tmp_mid, "wb") as f:
-        f.write(tampon.getvalue())
+    with _verrou_rendu(cle):       # même rendu demandé deux fois (aperçu et préparation) : un seul calcul
+        if deja_calcule(flac):
+            return flac, False
+        return _rend_moteurs(seule, son, cle, flac)
+
+
+_VERROUS_RENDU, _VERROU_VERROUS = {}, threading.Lock()
+
+
+def _verrou_rendu(cle):
+    with _VERROU_VERROUS:
+        return _VERROUS_RENDU.setdefault(cle, threading.Lock())
+
+
+def _rend_moteurs(seule, son, cle, flac):
+    """Le calcul lui-même : moteur(s), rendus séparés des notes répétées, fondus, FLAC du cache."""
+    temporaires = []
     try:
-        if son.startswith("sf:"):
-            sfz = os.path.join(CONFIG["dossier_sfz"], son[3:])
-            subprocess.run([CONFIG["sfizz_render"], "--sfz", sfz, "--midi", tmp_mid, "--wav", wav,
-                            "-s", "48000", "-q", "3", "--use-eot"],
-                           check=True, capture_output=True, timeout=600, creationflags=SANS_FENETRE)
-        else:
-            subprocess.run([CONFIG["fluidsynth"], "-ni", "-q", "-g", "0.5", "-r", "48000", "-F", wav,
-                            CONFIG["generaluser"], tmp_mid],
-                           check=True, capture_output=True, timeout=600, creationflags=SANS_FENETRE)
+        wavs, commandes = [], []
+        rendus = separe_repetitions(seule) if son.startswith("sf:") else [seule]
+        for k, mf in enumerate(rendus):
+            tmp_mid, wav = os.path.join(PISTES, f"{cle}.{k}.mid"), os.path.join(PISTES, f"{cle}.{k}.tmp.wav")
+            temporaires += [tmp_mid, wav]
+            mf.save(tmp_mid)
+            if son.startswith("sf:"):
+                sfz = os.path.join(CONFIG["dossier_sfz"], son[3:])
+                commandes.append([CONFIG["sfizz_render"], "--sfz", sfz, "--midi", tmp_mid, "--wav", wav,
+                                  "-s", "48000", "-q", "3", "--use-eot"])
+            else:
+                commandes.append([CONFIG["fluidsynth"], "-ni", "-q", "-g", "0.5", "-r", "48000", "-F", wav,
+                                  CONFIG["generaluser"], tmp_mid])
+            wavs.append(wav)
+        if len(commandes) == 1:
+            lance_moteur(commandes[0])
+        else:                                      # rendus séparés en parallèle, dans la limite commune MOTEURS
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=len(commandes)) as pool:
+                list(pool.map(lance_moteur, commandes))
         cordes = son.startswith("sf:") and "/Strings/" in son and "sustain" in son and "harp" not in son
         filtre = fondus_silences(seule, cordes=cordes) if son.startswith("sf:") else ""
-        subprocess.run([CONFIG["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", "-i", wav,
-                        *(["-af", filtre] if filtre else []), "-c:a", "flac", "-sample_fmt", "s32", flac],
+        if len(wavs) > 1:                          # rendus séparés (notes répétées) : additionnés, puis les fondus
+            chaine = "".join(f"[{k}:a]" for k in range(len(wavs))) + f"amix=inputs={len(wavs)}:normalize=0:duration=longest"
+            filtre = chaine + ("," + filtre if filtre else "")
+            options = ["-filter_complex", filtre]
+        else:
+            options = ["-af", filtre] if filtre else []
+        subprocess.run([CONFIG["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y",
+                        *[a for w in wavs for a in ("-i", w)], *options, "-c:a", "flac", "-sample_fmt", "s32", flac],
                        check=True, capture_output=True, timeout=600, creationflags=SANS_FENETRE)
     finally:
-        for t in (tmp_mid, wav):
+        for t in temporaires:
             if os.path.exists(t):
                 os.remove(t)
     return flac, True
 
 
 def nettoie_cache():
-    """Garde le cache sous la taille maximale (les pistes les moins récemment utilisées partent)."""
-    fichiers = [os.path.join(d, f) for d in (PISTES, ECOUTE, MONTAGES) for f in os.listdir(d)]
-    fichiers.sort(key=os.path.getmtime)
-    total = sum(os.path.getsize(f) for f in fichiers)
-    limite = CONFIG.get("cache_max_mo", 2000) * 1024 * 1024
-    while fichiers and total > limite:
-        f = fichiers.pop(0)
-        total -= os.path.getsize(f)
-        os.remove(f)
+    """Garde le cache sous la taille maximale, en gardant d'abord ce qui est long à refaire.
+    Les écoutes (mixages prêts à jouer, ~40 Mo chacune, refaites en 2 s) ont leur part, « cache_ecoutes_mo »
+    (500 Mo par défaut) : au-delà, les plus anciennes partent, sauf les 3 plus récentes (celle qu'on écoute).
+    Au-delà du plafond « cache_max_mo » partent ensuite les écoutes, puis les montages assemblés, et seulement
+    en dernier les pistes rendues (petites, mais jusqu'à 10-20 s de calcul chacune), les moins récemment utilisées."""
+    mo = 1024 * 1024
+    limite = CONFIG.get("cache_max_mo", 2000) * mo
+    part_ecoutes = min(CONFIG.get("cache_ecoutes_mo", 500) * mo, limite // 2)
+
+    def liste(d):
+        fs = [os.path.join(d, f) for f in os.listdir(d)]
+        return sorted(((os.path.getmtime(f), os.path.getsize(f), f) for f in fs if os.path.isfile(f)))
+
+    def efface(f):
+        try:
+            os.remove(f)
+        except OSError:                            # en cours d'utilisation ou déjà parti : tant pis
+            pass
+
+    ecoutes = liste(ECOUTE)
+    gardees, ecoutes = ecoutes[-3:], ecoutes[:-3]
+    te = sum(s for _, s, _ in ecoutes + gardees)
+    while ecoutes and te > part_ecoutes:
+        _, s, f = ecoutes.pop(0)
+        efface(f)
+        te -= s
+    candidats = ecoutes + liste(MONTAGES) + liste(PISTES)   # dans l'ordre où ils partiront
+    total = te + sum(s for _, s, _ in liste(MONTAGES) + liste(PISTES))
+    while candidats and total > limite:
+        _, s, f = candidats.pop(0)
+        efface(f)
+        total -= s
 
 
 def taille_cache():
@@ -566,10 +671,11 @@ def rend_pistes(chemin, pistes):
 
 
 def gain_reference(chemin, reference, fichiers, reverb, lufs):
-    """Gain qui amène le mixage COMPLET de l'original au volume voulu (mesure mémorisée)."""
-    st = os.stat(chemin)
-    cle = json.dumps([os.path.abspath(chemin), st.st_mtime_ns, reverb,
-                      [(*ligne(p), p["son"], p["volume"], p.get("pan", 0)) for p in reference]], sort_keys=True)
+    """Gain qui amène le mixage COMPLET au volume voulu (mesure mémorisée). La mesure est reconnue au CONTENU des
+    pistes rendues (leurs fichiers du cache portent l'empreinte de leur contenu) et aux réglages, pas au nom du
+    fichier : une nouvelle version du document aux mêmes pistes, ou préparée d'avance (montage), la réutilise."""
+    cle = json.dumps([reverb, [(*ligne(p), p["son"], p["volume"], p.get("pan", 0), os.path.basename(fichiers[ligne(p)]))
+                               for p in reference]], sort_keys=True)
     if cle not in MESURES:
         e, ch = graphe([(p, fichiers[ligne(p)]) for p in reference], reverb)
         res = subprocess.run([CONFIG["ffmpeg"], "-hide_banner", "-y", *e, "-filter_complex",
@@ -652,10 +758,84 @@ def niveaux(req):
 
 
 # ───────────────────────────── banc de montage ─────────────────────────────
+AVANT, APRES = 3.0, 4.0      # s rendus autour des mesures retouchées (notes déjà en cours ; résonance)
+FONDU_ENTREE, FONDU_SORTIE = 0.1, 0.3
+MARGE_SORTIE = 1.5           # le fondu de sortie se fait 1,5 s avant la fin de la fenêtre (ses bords sonnent moins juste)
+
+
+def extrait(seule, w0, w1):
+    """La piste à tempo fixe (piste_seule : 1 temps = 0,5 s) réduite à [w0, w1] s, recalée à 0 : réglages
+    d'avant w0 posés au début, notes coupées aux bords (une note déjà en cours est rejouée à 0, dans la partie
+    d'avant qui ne sera pas entendue)."""
+    tpb = seule.ticks_per_beat
+    k0, k1 = round(w0 * 2 * tpb), round(w1 * 2 * tpb)
+    notes, autres = montage._notes(list(montage._absolus(seule.tracks[0])))
+    ev = [(max(0, t - k0), 1, m) for t, m in autres if t < k1 and m.type != "marker"]
+    for d, f, on, off in notes:
+        if f > k0 and d < k1:
+            ev += [(max(d, k0) - k0, 2, on), (min(f, k1) - k0, 0, off)]
+    ev.sort(key=lambda e: (e[0], e[1]))
+    out, tr, prec = mido.MidiFile(ticks_per_beat=tpb), mido.MidiTrack(), 0
+    for t, _, m in ev:
+        tr.append(m.copy(time=t - prec))
+        prec = t
+    tr.append(mido.MetaMessage("end_of_track", time=max(0, k1 - k0 - prec)))
+    out.tracks.append(tr)
+    return out
+
+
+def zones_retouchees(plages, plages_s):
+    """Zones du montage (en s, sur le temps du montage) occupées par des mesures retouchées, celles qui sont
+    proches réunies (leurs fenêtres de rendu se chevaucheraient)."""
+    zones, pos = [], 0.0
+    for (a, b, notes), (s0, s1) in zip(plages, plages_s):
+        if notes is not None:
+            if zones and pos - AVANT < zones[-1][1] + APRES:
+                zones[-1][1] = pos + s1 - s0
+            else:
+                zones.append([pos, pos + s1 - s0])
+        pos += s1 - s0
+    return zones
+
+
+def fichier_montage(mid, segments):
+    """Le montage assemblé, enregistré dans cache\\montages sous un nom tiré de son contenu (même montage → même
+    fichier, déjà là) ; écrit d'abord sous un nom provisoire unique (plusieurs calculs peuvent tourner à la fois)."""
+    tampon = io.BytesIO()
+    montage.assemble(mid, segments).save(file=tampon)
+    donnees = tampon.getvalue()
+    chemin_m = os.path.join(MONTAGES, hashlib.sha1(donnees).hexdigest()[:20] + ".mid")
+    if not os.path.exists(chemin_m):
+        tmp = f"{chemin_m}.{threading.get_ident()}.tmp"
+        with open(tmp, "wb") as f:
+            f.write(donnees)
+        os.replace(tmp, chemin_m)
+    return chemin_m
+
+
+def prepare_montage(req):
+    """Pendant qu'on travaille dans le Montage (la page l'appelle après une pause de retouches), prépare ce que
+    l'écoute du document demandera quand le montage lui sera appliqué en revenant au Mixage : le rendu EXACT des
+    pistes retouchées (l'aperçu n'en rend que des fenêtres) et la mesure du volume de référence. Le document
+    assemblé est le même fichier (même contenu) : les pistes et la mesure, reconnues à leur contenu, sont reprises.
+    Ne prend pas le VERROU (les aperçus continuent) ; les moteurs restent dans la limite commune MOTEURS."""
+    chemin, reference, actives, reverb, lufs, solo = choix_pistes(req)
+    mid = lis_mid(chemin)
+    plages = montage.normalise(req["segments"], len(montage.bornes_mesures(mid)) - 1)
+    if not montage.canaux_modifies(mid, plages):
+        return {"preparees": 0}
+    chemin_m = fichier_montage(mid, req["segments"])
+    fichiers, recalc = rend_pistes(chemin_m, reference)
+    gain_reference(chemin_m, reference, fichiers, reverb, lufs)
+    return {"preparees": recalc}
+
+
 def ecoute_montage(req):
     """Écoute rapide d'un montage : chaque piste rendue de l'original est recollée selon les plages, puis mixée
-    (mêmes réglages et même volume de référence que l'original). Les pistes dont des notes ont été retouchées
-    sont rendues à partir du montage assemblé (le seul calcul un peu long)."""
+    (mêmes réglages et même volume de référence que l'original). Pour une piste dont des notes ont été retouchées,
+    seules des fenêtres autour des mesures retouchées sont rendues (depuis le montage assemblé) et viennent
+    remplacer, par un fondu enchaîné, l'original recollé : quelques secondes de calcul au lieu de toute la piste.
+    Si les retouches couvrent une grande partie du morceau, la piste est rendue entière."""
     chemin, reference, actives, reverb, lufs, solo = choix_pistes(req)
     st = os.stat(chemin)
     mid = mido.MidiFile(chemin)
@@ -663,7 +843,7 @@ def ecoute_montage(req):
     plages = montage.normalise(req["segments"], len(bornes) - 1)
     reponse = {"pistes": len(actives), "solo": solo, "raccords": sum(1 for k in range(1, len(plages))
                                                                      if plages[k - 1][1] + 1 != plages[k][0])}
-    empreinte = hashlib.sha1(json.dumps([req, st.st_mtime_ns, "montage3", QUEUE, RENDU], sort_keys=True).encode()).hexdigest()[:16]
+    empreinte = hashlib.sha1(json.dumps([req, st.st_mtime_ns, "montage4-fenetres", QUEUE, RENDU], sort_keys=True).encode()).hexdigest()[:16]
     sortie = os.path.join(ECOUTE, empreinte + ".flac")
     url = "/cache/ecoute/" + os.path.basename(sortie)
     if deja_calcule(sortie):
@@ -671,43 +851,152 @@ def ecoute_montage(req):
     fichiers, recalc = rend_pistes(chemin, reference)
     debut = time.time()
     gain = gain_reference(chemin, reference, fichiers, reverb, lufs)
-    # pistes retouchées : rendues depuis le montage assemblé (fichier MIDI nommé d'après son contenu)
-    modifies = montage.canaux_modifies(mid, plages) & {p["canal"] for p in actives}
-    rendues = {}
-    if modifies:
-        assemble = montage.assemble(mid, req["segments"])
-        tmp = os.path.join(MONTAGES, "tmp.mid")
-        assemble.save(tmp)
-        nom = hashlib.sha1(open(tmp, "rb").read()).hexdigest()[:20] + ".mid"
-        chemin_m = os.path.join(MONTAGES, nom)
-        os.replace(tmp, chemin_m) if not os.path.exists(chemin_m) else os.remove(tmp)
-        rendues, neuf = rend_pistes(chemin_m, [p for p in actives if p["canal"] in modifies])
-        recalc += neuf
     temps = montage.secondes(mid, bornes)
     plages_s = [(temps[a - 1], temps[b]) for a, b, _ in plages]
     # si le montage finit sur la dernière mesure de l'original, sa fin résonne comme celle de l'original
     queue = QUEUE if plages[-1][1] == len(bornes) - 1 else 0.35
     fin = sum(b - a for a, b in plages_s)
-    prefixe, sources, liste = [], [], []
+    # pistes retouchées : rendues depuis le montage assemblé (fichier MIDI nommé d'après son contenu)
+    modifies = montage.canaux_modifies(mid, plages) & {p["canal"] for p in actives}
+    rendues, fenetres = {}, {}            # ligne → piste entière ; ligne → [(w0, z0, z1, w1, fichier)]
+    if modifies:
+        chemin_m = fichier_montage(mid, req["segments"])
+        retouchees = [p for p in actives if p["canal"] in modifies]
+        zones = zones_retouchees(plages, plages_s)
+        if req.get("_piste_entiere") or len(zones) > 8 or sum(z1 - z0 for z0, z1 in zones) > 0.4 * fin:
+            rendues, neuf = rend_pistes(chemin_m, retouchees)
+            recalc += neuf
+        else:
+            travaux = []
+            for p in retouchees:
+                seule = piste_seule(chemin_m, p["canal"], p["son"], p.get("prog"))
+                for z0, z1 in zones:
+                    w0, w1 = max(0.0, z0 - AVANT), z1 + APRES
+                    travaux.append((ligne(p), w0, z0, z1, w1, extrait(seule, w0, w1), p["son"]))
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=max(1, int(CONFIG.get("rendus_simultanes", 4)))) as pool:
+                faits = list(pool.map(lambda x: rend_midi(x[5], x[6]), travaux))
+            for (c, w0, z0, z1, w1, _, _), (flac, neuf) in zip(travaux, faits):
+                fenetres.setdefault(c, []).append((w0, z0, z1, w1, flac))
+                recalc += neuf
+    prefixe, sources, liste, autres = [], [], [], []
     for i, p in enumerate(actives):
         c = ligne(p)
         if c in rendues:
             liste.append((p, rendues[c])); sources.append(f"[{i}:a]")
-        else:
-            liste.append((p, fichiers[c]))
+            continue
+        liste.append((p, fichiers[c]))
+        if c not in fenetres:
             prefixe += montage.chaine_collage(f"[{i}:a]", plages_s, f"[r{i}]", f"m{i}", queue=queue)
             sources.append(f"[r{i}]")
+            continue
+        # l'original recollé, éteint dans chaque fenêtre ; chaque fenêtre rendue, allumée par un fondu enchaîné
+        prefixe += montage.chaine_collage(f"[{i}:a]", plages_s, f"[b{i}]", f"m{i}", queue=queue)
+        poids = []                                     # poids de la fenêtre j dans le temps (0 → 1 → 0)
+        for j, (w0, z0, z1, w1, flac) in enumerate(fenetres[c]):
+            a, b = z0 - 0.2 - FONDU_ENTREE, w1 - MARGE_SORTIE - FONDU_SORTIE
+            poids.append(f"(clip((t-{a:.3f})/{FONDU_ENTREE},0,1)-clip((t-{b:.3f})/{FONDU_SORTIE},0,1))")
+            entree = len(actives) + len(autres)
+            autres.append(flac)
+            prefixe.append(f"[{entree}:a]adelay={round(w0 * 1000)}:all=1,volume='{poids[-1]}':eval=frame[f{i}_{j}]")
+        prefixe.append(f"[b{i}]volume='1-{'-'.join(poids)}':eval=frame[o{i}]")
+        n = len(fenetres[c]) + 1
+        prefixe.append(f"[o{i}]" + "".join(f"[f{i}_{j}]" for j in range(n - 1))
+                       + f"amix=inputs={n}:normalize=0:duration=first[r{i}]")
+        sources.append(f"[r{i}]")
     e, ch = graphe(liste, reverb, sources)
+    e += [a for f in autres for a in ("-i", f)]       # les fenêtres : entrées supplémentaires, après les pistes
     ecrit_mixage(req, e, prefixe + ch, gain, fin, sortie, queue)
     return {**reponse, "fichier": sortie, "url": url, "recalculees": recalc, "secondes": round(time.time() - debut, 1),
             "retouchees": len(modifies)}
 
 
+# ───────────────────────────── scripts générateurs (« Mettre à jour le script ») ─────────────────────────────
+def script_du_morceau(fichier, mid=None):
+    """Le script qui a fabriqué ce morceau : celui dont le nom est inscrit dans le .mid (« mixeur-script=… »), sinon
+    un script du même dossier dont la ligne PRODUIT = "…" est le début du nom du morceau (le plus récent). → chemin ou None."""
+    dossier, tige = os.path.dirname(fichier), os.path.splitext(os.path.basename(fichier))[0]
+    nom = retouches.script_du_mid(mid or lis_mid(fichier))
+    if nom and os.path.isfile(os.path.join(dossier, nom)):
+        return os.path.join(dossier, nom)
+    trouves = []
+    for f in os.listdir(dossier):
+        if f.lower().endswith(".py"):
+            p = os.path.join(dossier, f)
+            try:
+                m = re.search(r'^PRODUIT\s*=\s*"([^"]+)"', open(p, encoding="utf-8").read(), re.M)
+            except (OSError, UnicodeDecodeError):
+                continue
+            if m and (tige == m.group(1) or tige.startswith(m.group(1) + "_")):
+                trouves.append(p)
+    return max(trouves, key=os.path.getmtime) if trouves else None
+
+
+def lance_script(script, sortie, sans_retouches):
+    """Exécute un script générateur (convention : --sortie, --sans-retouches) avec python.exe (pas pythonw)."""
+    python = os.path.join(os.path.dirname(sys.executable), "python.exe")
+    commande = [python if os.path.exists(python) else sys.executable, "-I", script, "--sortie", sortie]
+    res = subprocess.run(commande + (["--sans-retouches"] if sans_retouches else []), cwd=os.path.dirname(script),
+                         capture_output=True, timeout=300, creationflags=SANS_FENETRE)
+    if res.returncode or not os.path.exists(sortie):
+        msg = res.stderr.decode("utf-8", "replace").strip().splitlines()[-1:] or ["erreur inconnue"]
+        raise ValueError(f"Le script « {os.path.basename(script)} » a échoué : {msg[0]}")
+    return mido.MidiFile(sortie)
+
+
+def met_a_jour_script(req):
+    """Écrit, à côté du script d'origine, une nouvelle version du script = même recette + bloc RETOUCHES /
+    REGLAGES qui reproduit le document en cours (avec ses retouches) ; jamais d'écrasement. Puis vérifie que ce
+    nouveau script redonne exactement le morceau."""
+    d = TRAVAUX.charge(req.get("doc"))
+    ouvert, actuel = d["copie"] or d["original"], TRAVAUX.chemin(d)
+    script = script_du_morceau(ouvert, lis_mid(actuel))
+    if not script:
+        raise ValueError("Ce morceau n'a pas été fabriqué par un script du mixeur (aucun script trouvé à côté de lui).")
+    source = open(script, encoding="utf-8").read()
+    bloc = re.compile(r"^# ───── RETOUCHES.*?^# ───── fin des retouches ─────$", re.M | re.S)
+    if not bloc.search(source):
+        raise ValueError(f"« {os.path.basename(script)} » n'a pas de bloc RETOUCHES (convention du mixeur).")
+    tmp = os.path.join(MONTAGES, f"script_{threading.get_ident()}")
+    os.makedirs(tmp, exist_ok=True)
+    try:
+        recette = lance_script(script, os.path.join(tmp, "recette.mid"), sans_retouches=True)
+        morceau = mido.MidiFile(actuel)
+        liste = retouches.compare(recette, morceau)
+        tige = os.path.splitext(os.path.basename(ouvert))[0]
+        produit = re.search(r'^PRODUIT\s*=\s*"([^"]+)"', source, re.M)
+        suffixe = (tige[len(produit.group(1)):].strip("_ ") if produit and tige.startswith(produit.group(1)) else tige) or "retouches"
+        base = re.sub(r"\s+v\d+$", "", os.path.splitext(os.path.basename(script))[0])
+        cible, k = os.path.join(os.path.dirname(script), f"{base} {suffixe}.py"), 2
+        while os.path.exists(cible):
+            cible, k = os.path.join(os.path.dirname(script), f"{base} {suffixe} ({k}).py"), k + 1
+        import pprint
+        nouveau_bloc = ("# ───── RETOUCHES (écrit par le mixeur — garder ces deux lignes de repère) ─────\n"
+                        f"# {len(liste)} retouche(s) faite(s) dans le mixeur sur « {os.path.basename(ouvert)} » le "
+                        f"{time.strftime('%d/%m/%Y à %H:%M')} ; REGLAGES : réglages de mixage repris du mixeur.\n"
+                        + retouches.en_python(liste, recette) + "\n"
+                        + "REGLAGES = " + pprint.pformat(req.get("reglages"), width=110, sort_dicts=False) + "\n"
+                        + "# ───── fin des retouches ─────")
+        with open(cible, "w", encoding="utf-8", newline="\n") as f:
+            f.write(bloc.sub(lambda _: nouveau_bloc, source, count=1))
+        verif = retouches.compare(lance_script(cible, os.path.join(tmp, "verif.mid"), sans_retouches=False), morceau)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return {"script": os.path.basename(cible), "retouches": len(liste), "ecarts": len(verif)}
+
+
 # ───────────────────────────── document de travail ─────────────────────────────
 def etat_doc(d, avec_morceau=True):
     """Ce que la page doit savoir du document (et, au besoin, l'analyse de sa version courante)."""
+    script = script_du_morceau(d["copie"] or d["original"], lis_mid(TRAVAUX.chemin(d)))
+    modifie = TRAVAUX.modifie(d)
+    try:                                   # mesures qui diffèrent du fichier enregistré (repérées dans le Montage)
+        modifiees = montage.mesures_modifiees(lis_mid(TRAVAUX.chemin(d, d["enregistree"])), lis_mid(TRAVAUX.chemin(d))) if modifie else []
+    except Exception:
+        modifiees = []
     r = {"doc": {"id": d["id"], "original": d["original"], "copie": d["copie"], "versions": d["versions"],
-                 "courante": d["courante"], "enregistree": d["enregistree"], "modifie": TRAVAUX.modifie(d)}}
+                 "courante": d["courante"], "enregistree": d["enregistree"], "modifie": modifie,
+                 "modifiees": modifiees, "script": os.path.basename(script) if script else None}}
     if avec_morceau:
         r["morceau"] = analyse(TRAVAUX.chemin(d), reglages_de=d["copie"] or d["original"])
     return r
@@ -812,6 +1101,9 @@ class Console(http.server.BaseHTTPRequestHandler):
         if m and os.path.isfile(os.path.join(PAGE, *m.group(1).split("/"))):
             type_ = "text/css" if url.endswith(".css") else "text/javascript"
             return self.fichier(os.path.join(PAGE, *m.group(1).split("/")), type_ + "; charset=utf-8")
+        m = re.fullmatch(r"/icones/([\w-]+\.svg)", url)     # icônes de la page (page\icones\*.svg)
+        if m and os.path.isfile(os.path.join(PAGE, "icones", m.group(1))):
+            return self.fichier(os.path.join(PAGE, "icones", m.group(1)), "image/svg+xml")
         if url in ("/favicon.ico", "/icone.png"):          # icône de l'application (onglet du navigateur)
             return self.fichier(os.path.join(PAGE, url[1:]), "image/x-icon" if url.endswith(".ico") else "image/png")
         if url == "/api/version":
@@ -840,6 +1132,8 @@ class Console(http.server.BaseHTTPRequestHandler):
             if url == "/api/montage/ecoute":
                 with VERROU:
                     return self.envoie(200, ecoute_montage(req))
+            if url == "/api/montage/preparer":             # en arrière-plan, sans le VERROU (voir prepare_montage)
+                return self.envoie(200, prepare_montage(req))
             if url.startswith("/api/doc/"):
                 with VERROU:
                     return self.envoie(200, route_doc(url, req))
@@ -849,6 +1143,9 @@ class Console(http.server.BaseHTTPRequestHandler):
             if url == "/api/texte/lire":
                 verifie_chemin(req["fichier"])
                 return self.envoie(200, {"texte": midi_texte.texte_de(mido.MidiFile(req["fichier"]), os.path.basename(req["fichier"]))})
+            if url == "/api/script/mettre-a-jour":
+                with VERROU:
+                    return self.envoie(200, met_a_jour_script(req))
             if url == "/api/texte/verifier":
                 return self.envoie(200, {"erreurs": erreurs_texte(req["texte"])[1]})
             if url == "/api/vider_cache":

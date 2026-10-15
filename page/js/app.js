@@ -24,6 +24,7 @@ const demandeEcoute = () => ONGLET === "montage"
 let minuterie = null, enCours = false, encore = false;
 function aChange() {
   REG.note();
+  if (ONGLET === "montage") preparePlusTard();
   if (!MORCEAU || !TR.aUnMixage()) return;          // pas encore écouté : ▶ fera le premier calcul
   clearTimeout(minuterie); minuterie = setTimeout(remixe, 250);
 }
@@ -33,7 +34,7 @@ async function remixe() {
   const morceau = MORCEAU, mode = ONGLET;
   statut(mode === "montage" ? "Mise à jour du montage…" : "Mise à jour du mixage…");
   try {
-    const r = await demandeEcoute();
+    const r = await calcul(demandeEcoute());
     if (!encore && MORCEAU === morceau && ONGLET === mode) { TR.charge(r.url); statut("À jour : " + bilan(r), "ok"); chargeNiveaux(); }
   } catch (e) { statut(e.message, "err"); }
   enCours = false;
@@ -62,6 +63,24 @@ const REG = (() => {
     peutAnnuler: () => hist.length > 0, peutRetablir: () => futur.length > 0, enAttente: () => false,
   };
 })();
+
+// Préparation du retour au Mixage : après une pause de 2,5 s dans les retouches du Montage (aperçu terminé), le
+// serveur calcule en arrière-plan le rendu exact des pistes retouchées et la mesure de volume ; appliquer le montage
+// en revenant au Mixage les retrouve en cache (≈ 2 s au lieu de 15 s pour une piste longue). Une seule à la fois.
+let minuteriePrep = null, prepEnCours = false, prepEncore = false;
+function preparePlusTard(delai = 2500) {
+  clearTimeout(minuteriePrep);
+  minuteriePrep = setTimeout(prepare, delai);
+}
+async function prepare() {
+  if (ONGLET !== "montage" || !MORCEAU || !MT.enAttente()) return;
+  if (enCours) return preparePlusTard(1500);               // un aperçu est en cours : il passe d'abord
+  if (prepEnCours) { prepEncore = true; return; }
+  prepEnCours = true; prepEncore = false;
+  try { await api("/api/montage/preparer", {fichier: MORCEAU.chemin, segments: MT.segments(), ...reglages()}); } catch (e) {}
+  prepEnCours = false;
+  if (prepEncore) preparePlusTard(500);
+}
 
 // ───── document de travail
 function appliqueReglages(r) {
@@ -105,19 +124,19 @@ async function appliqueEnAttente() {
   if (!DOC) return true;
   if (ONGLET === "montage" && MT.enAttente()) {
     statut("Application du montage au document…");
-    const r = await api("/api/doc/montage", {doc: DOC.id, segments: MT.segments()});
+    const r = await calcul(api("/api/doc/montage", {doc: DOC.id, segments: MT.segments()}));
     MT.oublie(); appliqueDoc(r);
-    statut(`Montage appliqué au document (version ${DOC.versions.indexOf(DOC.courante) + 1}).`, "ok");
+    statut("Montage appliqué.", "ok");
   } else if (ONGLET === "texte" && TX.enAttente()) {
     statut("Application des corrections au document…");
-    const r = await api("/api/doc/texte", {doc: DOC.id, texte: TX.texte()});
+    const r = await calcul(api("/api/doc/texte", {doc: DOC.id, texte: TX.texte()}));
     if (r.erreurs) {
       TX.montreErreurs(r.erreurs);
       statut(`Le texte a ${r.erreurs.length} erreur(s) : corrigez-les (liste en haut de l'onglet) avant de changer d'onglet ou d'enregistrer.`, "err");
       return false;
     }
     TX.oublie(); appliqueDoc(r);
-    statut(`Corrections appliquées au document (version ${DOC.versions.indexOf(DOC.courante) + 1}).`, "ok");
+    statut("Corrections appliquées.", "ok");
   }
   return true;
 }
@@ -127,9 +146,10 @@ function majDoc() {
   if (!DOC) return;
   const m = estModifie(), i = DOC.versions.indexOf(DOC.courante);
   $("#doc-etat").innerHTML = (m ? `<span class="modif">● modifié</span>` : `<span class="ok">✓ enregistré</span>`)
-    + ` · ${DOC.copie ? "copie" : "fichier"} <b>${echappe(nomDe(DOC.copie || DOC.original))}</b>`
-    + (DOC.versions.length > 1 ? ` · version ${i + 1}/${DOC.versions.length}` : "");
+    + ` · ${DOC.copie ? "copie" : "fichier"} <b>${echappe(nomDe(DOC.copie || DOC.original))}</b>`;
   $("#doc-enregistrer").disabled = !m;           // à jour : « Enregistrer » grisé
+  $("#doc-script").hidden = !DOC.script;         // morceau fabriqué par un script : « Mettre à jour le script »
+  $("#doc-script").title = DOC.script ? `Mettre à jour le script (${DOC.script})` : "";
   const ed = editeur();
   $("#doc-annuler").disabled = !(ed && ed.peutAnnuler()) && i <= 0;
   $("#doc-retablir").disabled = !(ed && ed.peutRetablir()) && (i >= DOC.versions.length - 1 || !!(ed && ed.enAttente()));
@@ -146,8 +166,8 @@ async function versionVoisine(sens) {
   if ((MT.enAttente() || TX.enAttente()) && !confirm("Abandonner le montage ou les corrections pas encore appliqués ?")) return;
   MT.oublie(); TX.oublie();
   try {
-    appliqueDoc(await api("/api/doc/version", {doc: DOC.id, version: DOC.versions[i]}));
-    statut(`Version ${i + 1} sur ${DOC.versions.length} du document.`, "ok");
+    appliqueDoc(await calcul(api("/api/doc/version", {doc: DOC.id, version: DOC.versions[i]})));
+    statut(sens < 0 ? "Modification annulée." : "Modification rétablie.", "ok");
   } catch (e) { statut(e.message, "err"); }
 }
 async function enregistrer(nouvelle) {
@@ -158,8 +178,10 @@ async function enregistrer(nouvelle) {
     const r = await api("/api/doc/enregistrer", {doc: DOC.id, reglages: reglages(), nouvelle});
     DOC = r.doc; REGLAGES_ENREGISTRES = JSON.stringify(reglages());
     const nom = nomDe(r.fichier);
-    statut(r.genre === "mid"
-      ? `Enregistré : ${nom} (notes et réglages), à côté du morceau — l'original n'est pas modifié. Les « Enregistrer » suivants mettent à jour cette copie.`
+    statut(r.genre === "copie"
+      ? `Copie enregistrée : ${nom} (notes et réglages). Les « Enregistrer » suivants mettent à jour cette copie.`
+      : r.genre === "mid"
+      ? `Enregistré : ${nom} (notes et réglages). L'ancienne version est gardée dans le dossier « sauvegardes », à côté du morceau.`
       : `Réglages enregistrés : ${nom.replace(/\.midi?$/i, "")}.mix.json (les notes n'ont pas changé).`, "ok");
     await listeFichiers(); afficheMorceau(); majDoc();
   } catch (e) { statut(e.message, "err"); }
@@ -173,6 +195,18 @@ function afficheMorceau() {
 }
 $("#doc-enregistrer").addEventListener("click", () => enregistrer(false));
 $("#doc-version").addEventListener("click", () => enregistrer(true));
+// « Mettre à jour le script » : nouvelle version du script générateur (même recette + les retouches du document)
+$("#doc-script").addEventListener("click", async () => {
+  if (!DOC) return;
+  try {
+    if (!(await appliqueEnAttente())) return;
+    statut("Mise à jour du script…");
+    const r = await calcul(api("/api/script/mettre-a-jour", {doc: DOC.id, reglages: reglages()}));
+    statut(`Script écrit : ${r.script} (${r.retouches} retouche(s) et les réglages de mixage), à côté de l'original — `
+      + (r.ecarts ? `attention : relancé, il diffère encore du morceau en ${r.ecarts} point(s).` : "vérifié : relancé, il redonne exactement ce morceau."),
+      r.ecarts ? "err" : "ok");
+  } catch (e) { statut(e.message, "err"); }
+});
 // Annuler / Rétablir, seuls boutons de ce genre de la page : d'abord ce qui se fait dans l'onglet ouvert, un pas
 // à la fois (réglages du Mixage, retouches pas encore appliquées du Montage ou des Événements), puis les versions du document.
 const editeur = () => ONGLET === "montage" ? MT : ONGLET === "texte" ? TX : REG;
@@ -227,7 +261,7 @@ async function charger() {
   occupe(true); statut("Lecture du morceau…");
   try {
     let r;
-    try { r = await api("/api/doc/ouvrir", {fichier: f}); }
+    try { r = await calcul(api("/api/doc/ouvrir", {fichier: f})); }
     catch (e) { throw e.message === "introuvable" ? new Error(ANCIENNE_VERSION) : e; }
     appliqueDoc(r, {});
     try { localStorage.setItem("mixeur.fichier", f); } catch (e) {}
@@ -245,13 +279,13 @@ async function rendu(cible) {
   if (cible === "ecoute") TR.calcul(true);                 // la touche ▶ clignote, « calcul… » à l'afficheur
   try {
     if (cible === "ecoute") {
-      const r = await demandeEcoute();
+      const r = await calcul(demandeEcoute());
       TR.charge(r.url);
       statut("Prêt : " + bilan(r) + " Les modifications suivantes s'appliquent toutes seules pendant l'écoute.", "ok");
       chargeNiveaux();
     } else {
       // l'export va à côté du morceau (ou de sa copie enregistrée), avec le document tel qu'il est maintenant
-      const r = await api("/api/rendu", {fichier: MORCEAU.chemin, cible, base: DOC && (DOC.copie || DOC.original), ...reglages()});
+      const r = await calcul(api("/api/rendu", {fichier: MORCEAU.chemin, cible, base: DOC && (DOC.copie || DOC.original), ...reglages()}));
       statut(`Exporté : ${r.fichier}`, "ok");
     }
   } catch (e) { statut(e.message, "err"); }

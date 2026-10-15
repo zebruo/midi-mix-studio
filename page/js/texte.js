@@ -275,6 +275,7 @@ const TX = (() => {
     if (a === "suppr") { for (const i of ids.reverse()) lignes.splice(i, 1); return apres(true); }
     if (a === "dur-" || a === "dur+" || a === "lie") { dureesGroupees(ids, a); return apres(false); }
     if (a === "cale") { caleSurLeTemps(ids); return apres(false); }
+    if (a === "fusion") { fusionne(ids); return apres(true); }
     for (const i of ids) {
       const o = {...infos[i]}; if (o.type !== "evt") continue;
       if (a.startsWith("vel") && o.genre === "note" && !o.malforme) o.vel = Math.max(1, Math.min(127, o.vel + +a.slice(3)));
@@ -319,6 +320,34 @@ const TX = (() => {
       ecritDuree(o, nd); lignes[i] = ecrire(o); n++;
     }
     statut(`${n} note(s) modifiée(s).`, "ok");
+  }
+
+  // fusionner : les notes cochées de même hauteur, sur la même piste et le même canal, n'en font plus qu'une
+  // (la première, allongée jusqu'à la fin de la dernière ; les autres lignes sont supprimées)
+  function fusionne(ids) {
+    const groupes = new Map();
+    for (const i of ids) {
+      const o = infos[i];
+      if (o.type !== "evt" || o.genre !== "note" || o.malforme) continue;
+      const n = lireNote(o.note); if (n === null) continue;
+      const k = `${o.piste}:${o.canal}:${n}`;
+      if (!groupes.has(k)) groupes.set(k, []);
+      groupes.get(k).push(o);
+    }
+    const suppr = [];
+    let nb = 0;
+    for (const g of groupes.values()) {
+      if (g.length < 2) continue;
+      g.sort((a, b) => a.tick - b.tick);
+      const o = {...g[0]};
+      ecritDuree(o, Math.max(...g.map(x => x.tick + dureeTicks(x))) - o.tick);
+      lignes[o.i] = ecrire(o);
+      suppr.push(...g.slice(1).map(x => x.i));
+      nb++;
+    }
+    for (const i of suppr.sort((x, y) => y - x)) lignes.splice(i, 1);
+    statut(nb ? `${nb} fusion(s) : ${suppr.length} note(s) réunie(s) à la précédente.`
+              : "Rien à fusionner : cochez au moins deux notes de même hauteur sur la même piste.", nb ? "ok" : "err");
   }
 
   // caler sur le temps : une attaque à 1/16 de temps au plus d'un quart de temps y est ramenée, la fin de la note ne bouge pas
@@ -441,7 +470,7 @@ const TX = (() => {
     if (!MORCEAU) return;
     chemin = MORCEAU.chemin; hist = []; futur = []; coches.clear(); erreurs = new Map(); page = 0;
     const nom = DOC ? (DOC.copie || DOC.original).split(/[\\/]/).pop() : chemin.split(/[\\/]/).pop();
-    $("#tx-source").innerHTML = `Le document en cours de <b>${echappe(nom)}</b>${DOC && DOC.courante > 1 ? ` (version ${DOC.courante}, montage et corrections compris)` : ""}.`;
+    $("#tx-source").innerHTML = `Le document en cours de <b>${echappe(nom)}</b>${DOC && DOC.courante > 1 ? ", avec vos modifications" : ""}.`;
     $("#tx-etat").textContent = "lecture du document…";
     try {
       original = (await api("/api/texte/lire", {fichier: chemin})).texte.replace(/\n$/, "");

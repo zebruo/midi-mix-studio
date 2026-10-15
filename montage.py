@@ -125,6 +125,26 @@ def structure(mid):
             "programmes": {str(c): v for c, v in chg.items() if c in partages}}
 
 
+def mesures_modifiees(avant, apres):
+    """Mesures de `apres` (numérotées à partir de 1) dont les notes diffèrent de celles de `avant`. Les mesures
+    sont alignées comme deux textes (difflib) : une mesure ajoutée, supprimée ou déplacée par un montage ne fait
+    pas marquer toutes celles qui la suivent."""
+    import difflib
+
+    def par_mesure(mid):
+        bornes, av = bornes_mesures(mid), mid.ticks_per_beat // 8
+        res = [[] for _ in range(len(bornes) - 1)]
+        for d, f, on, _ in notes(mid):
+            k = min(len(res) - 1, max(0, _mesure_de(bornes, d + av)))
+            res[k].append((on.channel, on.note, on.velocity, d - bornes[k], f - bornes[k]))
+        return [tuple(sorted(x)) for x in res]
+    a, b = par_mesure(avant), par_mesure(apres)
+    gardees = set()
+    for i, j, n in difflib.SequenceMatcher(None, a, b, autojunk=False).get_matching_blocks():
+        gardees.update(range(j + 1, j + n + 1))
+    return [k for k in range(1, len(b) + 1) if k not in gardees]
+
+
 def _mesure_de(bornes, tick):
     lo, hi = 0, len(bornes) - 1
     while lo < hi:

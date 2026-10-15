@@ -26,8 +26,9 @@
       <span class="doc-etat" id="doc-etat" aria-live="polite"></span>
       <button type="button" id="doc-annuler" title="Annuler (Ctrl+Z)">↶ Annuler</button>
       <button type="button" id="doc-retablir" title="Rétablir (Ctrl+Y)">↷ Rétablir</button>
-      <button type="button" id="doc-enregistrer" class="play ico" aria-label="Enregistrer" title="Enregistrer (Ctrl+S)"><svg viewBox="0 0 16 16"><path fill-rule="evenodd" d="M2 1h9.6L15 4.4V14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1ZM4.5 2.5V6h6.5V2.5ZM8.6 3.1h1.5v2.3H8.6ZM3.5 8.5h9v5h-9Z"/></svg></button>
-      <button type="button" id="doc-version" class="ico" aria-label="Enregistrer une copie" title="Enregistrer une copie (_v2, _v3…)"><svg viewBox="0 0 16 16"><mask id="masque-copie"><rect width="16" height="16" fill="#fff"/><path d="M4.7 3H13.2L16.8 6.6V17H4.7Z" fill="#000"/></mask><path fill-rule="evenodd" opacity=".55" mask="url(#masque-copie)" transform="scale(.75)" d="M2 1h9.6L15 4.4V14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1ZM4.5 2.5V6h6.5V2.5ZM8.6 3.1h1.5v2.3H8.6ZM3.5 8.5h9v5h-9Z"/><path fill-rule="evenodd" transform="translate(4.4 4.4) scale(.725)" d="M2 1h9.6L15 4.4V14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1ZM4.5 2.5V6h6.5V2.5ZM8.6 3.1h1.5v2.3H8.6ZM3.5 8.5h9v5h-9Z"/></svg></button>
+      <button type="button" id="doc-enregistrer" class="play ico" aria-label="Enregistrer" title="Enregistrer (Ctrl+S)"><svg viewBox="0 0 16 16" data-icone="enregistrer"></svg></button>
+      <button type="button" id="doc-version" class="ico" aria-label="Enregistrer une copie" title="Enregistrer une copie (_v2, _v3…)"><svg viewBox="0 0 16 16" data-icone="copie"></svg></button>
+      <button type="button" id="doc-script" class="ico" aria-label="Mettre à jour le script" hidden><svg viewBox="0 0 16 16" data-icone="script"></svg></button>
     </div>
   </header>
 
@@ -74,32 +75,35 @@
     </div>
     <div class="mt-detail">
       <div class="mt-detail-tete">
-        <div class="mt-detail-titre" id="mt-detail-titre">Détail : sélectionnez une ou plusieurs mesures (montage ou original) pour voir leurs notes.</div>
+        <div class="mt-detail-gauche">
+          <div class="mt-detail-titre" id="mt-detail-titre">Détail : sélectionnez une ou plusieurs mesures (montage ou original) pour voir leurs notes.</div>
+          <span class="mt-aide-notes" id="mt-aide-notes" tabindex="0" role="img" aria-label="Aide" hidden><svg viewBox="0 0 16 16" data-icone="info"></svg></span>
+        </div>
         <div class="mt-detail-boutons">
           <button type="button" id="mt-suivre" aria-pressed="false" aria-label="Suivre la lecture" hidden
-            title="Suivre la lecture : le détail passe aux mesures suivantes quand la tête de lecture sort de celles affichées (la sélection suit)"><svg viewBox="0 0 16 16"><path d="M2 1.5h6L5 5z"/><path d="M5 4v10.5M8 9.5h4" fill="none" stroke="currentColor" stroke-width="1.83"/><path d="M11 6.5 15 9.5 11 12.5z"/></svg></button>
+            title="Suivre la lecture : le détail passe aux mesures suivantes quand la tête de lecture sort de celles affichées (la sélection suit)"><svg viewBox="0 0 16 16" data-icone="suivre"></svg></button>
           <button type="button" id="mt-detail-fermer" title="Fermer le détail (Échap)" aria-label="Fermer le détail" hidden>✕</button>
         </div>
       </div>
       <div class="mt-edition" id="mt-edition" hidden>
-        <span class="mt-notes-info" id="mt-notes-info">aucune note sélectionnée</span>
+        <span class="mt-note-choisie" id="mt-note-choisie"></span>
         <label class="k" for="mt-pas">Grille</label>
         <select id="mt-pas" title="Calage des notes déplacées, allongées ou ajoutées">
           <option value="1">1 temps</option><option value="0.5">½ temps (croche)</option>
           <option value="0.25" selected>¼ temps (double croche)</option><option value="0.3333333">⅓ temps (triolet)</option>
           <option value="0.1666667">⅙ temps</option><option value="0.0625">libre (1/16 de temps)</option>
         </select>
-        <label class="k" for="mt-vel">Vélocité</label>
-        <input id="mt-vel" type="range" min="1" max="127" value="80" disabled>
-        <span class="val" id="mt-velv">—</span>
+        <label class="k" for="mt-vel" title="Force d'attaque des notes choisies (1 à 127) : plus forte, la note sonne plus fort et plus brillante ; dans le détail, elle est plus opaque">Vélocité</label>
+        <span class="mt-vel"><input id="mt-vel" type="range" min="1" max="127" value="80" disabled><span class="val" id="mt-velv">—</span></span>
         <button type="button" id="mt-vel-moins" title="Plus doux (−10)" disabled>− doux</button>
         <button type="button" id="mt-vel-plus" title="Plus fort (+10)" disabled>+ fort</button>
         <button type="button" id="mt-oct-bas" title="Une octave plus bas (Maj+↓)" disabled>8va ↓</button>
         <button type="button" id="mt-dt-bas" title="Un demi-ton plus bas (↓)" disabled>½ ↓</button>
         <button type="button" id="mt-dt-haut" title="Un demi-ton plus haut (↑)" disabled>½ ↑</button>
         <button type="button" id="mt-oct-haut" title="Une octave plus haut (Maj+↑)" disabled>8va ↑</button>
-        <button type="button" id="mt-notes-suppr" title="Supprimer les notes sélectionnées (Suppr)" disabled>Supprimer les notes</button>
-        <button type="button" id="mt-notes-orig" title="Rendre aux mesures affichées leurs notes d'origine">Notes d'origine</button>
+        <button type="button" id="mt-fusion" class="ico" title="Fusionner les notes de même hauteur sélectionnées" aria-label="Fusionner" disabled><svg viewBox="0 0 16 16" data-icone="fusionner"></svg></button>
+        <button type="button" id="mt-notes-suppr" class="ico" title="Supprimer les notes sélectionnées (Suppr)" aria-label="Supprimer les notes" disabled><svg viewBox="0 0 16 16" data-icone="supprimer"></svg></button>
+        <button type="button" id="mt-notes-orig" class="ico" title="Notes d'origine des mesures affichées" aria-label="Notes d'origine"><svg viewBox="0 0 16 16" data-icone="origine"></svg></button>
       </div>
       <div class="mt-detail-zone"><canvas id="mt-detail" aria-label="Notes des mesures sélectionnées"></canvas>
         <div class="mt-bulle" id="mt-bulle" hidden></div></div>
@@ -157,6 +161,7 @@
           <button type="button" data-a="dur-" title="Raccourcir les notes cochées d'1/8 de temps">−</button>
           <button type="button" data-a="dur+" title="Allonger les notes cochées d'1/8 de temps">+</button>
           <button type="button" data-a="lie" title="Lier : chaque note cochée dure jusqu'à la note suivante de sa piste, avec un petit souffle (1/16 de temps)">Lié</button>
+          <button type="button" data-a="fusion" title="Fusionner les notes cochées de même hauteur">Fusionner</button>
         </div>
         <div class="tx-groupe">
           <button type="button" data-a="suppr">Supprimer les lignes</button>
@@ -197,16 +202,19 @@
       <div class="rangee">
         <div class="bloc"><span class="etiq">Transport</span>
           <div class="touches">
-            <button class="touche" id="t-debut" type="button" title="Au début (Origine)" aria-label="Au début"><svg viewBox="0 0 16 16"><path d="M2 2h2v12H2zM14 2v12L5 8z"/></svg></button>
-            <button class="touche" id="t-recul" type="button" title="Reculer d'une mesure" aria-label="Reculer"><svg viewBox="0 0 16 16"><path d="M8 3v10L1 8zM15 3v10L8 8z"/></svg></button>
-            <button class="touche" id="t-stop" type="button" title="Stop (retour au départ de lecture)" aria-label="Stop"><svg viewBox="0 0 16 16"><path d="M3 3h10v10H3z"/></svg></button>
-            <button class="touche lecture" id="t-play" type="button" title="Lecture / pause (barre d'espace)" aria-label="Lecture" aria-pressed="false"><svg viewBox="0 0 16 16" id="ico-play"><path d="M4 2l10 6-10 6z"/></svg></button>
-            <button class="touche" id="t-avance" type="button" title="Avancer d'une mesure" aria-label="Avancer"><svg viewBox="0 0 16 16"><path d="M1 3v10l7-5zM8 3v10l7-5z"/></svg></button>
-            <button class="touche" id="t-boucle" type="button" title="Boucle entre L et R (touche B)" aria-label="Boucle" aria-pressed="false"><svg viewBox="0 0 16 16"><path d="M4.6 4.4A3.6 3.6 0 0 0 4.6 11.6H7.8M11.4 11.6A3.6 3.6 0 0 0 11.4 4.4H8.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.6 9.2 10.4 11.6 7.6 14zM8.4 2 5.6 4.4 8.4 6.8z"/></svg></button>
+            <button class="touche" id="t-debut" type="button" title="Au début (Origine)" aria-label="Au début"><svg viewBox="0 0 16 16" data-icone="debut"></svg></button>
+            <button class="touche" id="t-recul" type="button" title="Reculer d'une mesure" aria-label="Reculer"><svg viewBox="0 0 16 16" data-icone="recul"></svg></button>
+            <button class="touche" id="t-stop" type="button" title="Stop (retour au départ de lecture)" aria-label="Stop"><svg viewBox="0 0 16 16" data-icone="stop"></svg></button>
+            <button class="touche lecture" id="t-play" type="button" title="Lecture / pause (barre d'espace)" aria-label="Lecture" aria-pressed="false"><svg viewBox="0 0 16 16" id="ico-play" data-icone="lecture"></svg></button>
+            <button class="touche" id="t-avance" type="button" title="Avancer d'une mesure" aria-label="Avancer"><svg viewBox="0 0 16 16" data-icone="avance"></svg></button>
+            <button class="touche" id="t-boucle" type="button" title="Boucle entre L et R (touche B)" aria-label="Boucle" aria-pressed="false"><svg viewBox="0 0 16 16" data-icone="boucle"></svg></button>
           </div></div>
         <div class="bloc"><span class="etiq">Position · mesure . temps . tick</span><div class="lcd" id="lcd-pos">  1 . 1 . 000</div></div>
         <div class="bloc"><span class="etiq">Temps</span><div class="lcd vert" id="lcd-temps">0:00.000</div></div>
         <div class="bloc"><span class="etiq">Tempo · mesure</span><div class="lcd petit" id="lcd-tempo">120.0<small>bpm</small>  4/4</div></div>
+        <div class="bloc calcul-bloc repos" id="t-calcul" role="status" aria-live="polite" title="Calcul du son : en cours, ou durée du dernier">
+          <span class="etiq">Calcul</span>
+          <div class="lcd petit"><svg viewBox="0 0 16 16" class="anneau" aria-hidden="true" data-icone="calcul"></svg><svg viewBox="0 0 16 16" class="coche" aria-hidden="true" data-icone="fait"></svg><span id="t-calcul-s">prêt</span></div></div>
         <div class="bloc"><span class="etiq">Boucle L — R</span>
           <div class="locs">
             <button class="touche mini" id="t-setL" type="button" title="Placer L à la position actuelle">L</button>

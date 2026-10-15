@@ -202,8 +202,15 @@ const MT = (() => {
     const w = echelle(W);
     libelle(g, "Montage", `${barres.length} mesures`, H);
     cases(g, barres, w, 14, H - 26);
-    g.fillStyle = "#ffffff";                       // point blanc = mesure dont les notes ont été retouchées
-    barres.forEach((x, i) => { if (retouchee(x)) { g.beginPath(); g.arc(GOUT + (i + .5) * w, 19, Math.max(1.5, Math.min(3, w / 3)), 0, 7); g.fill(); } });
+    // point blanc = mesure retouchée dans ce montage (pas encore appliqué) ; cercle = mesure déjà modifiée dans le
+    // document, mais pas encore enregistrée (le montage a été appliqué en changeant d'onglet)
+    const enregistrees = new Set(DOC && DOC.modifiees || []);
+    g.fillStyle = g.strokeStyle = "#ffffff"; g.lineWidth = 1.2;
+    barres.forEach((x, i) => {
+      const r = Math.max(1.5, Math.min(3, w / 3));
+      if (retouchee(x)) { g.beginPath(); g.arc(GOUT + (i + .5) * w, 19, r, 0, 7); g.fill(); }
+      else if (enregistrees.has(sb(x))) { g.beginPath(); g.arc(GOUT + (i + .5) * w, 19, Math.max(1, r - .6), 0, 7); g.stroke(); }
+    });
     let i0 = 0; g.font = "10px Consolas, monospace";
     for (const s of suites()) {
       const n = s.b - s.a + 1, x = GOUT + i0 * w, txt = s.a === s.b ? `${s.a}` : `${s.a}–${s.b}`;
@@ -348,6 +355,7 @@ const MT = (() => {
     cibles = [];
     $("#mt-edition").hidden = !(vue && vue.edition);
     $("#mt-detail-fermer").hidden = !vue;
+    $("#mt-aide-notes").hidden = !(vue && vue.edition);           // l'aide « i » : seulement quand on peut modifier
     $("#mt-suivre").hidden = !(vue && vue.edition);
     cD.parentElement.hidden = !vue;                 // détail fermé : pas de cadre noir vide
     cD.classList.toggle("edition", !!(vue && vue.edition));
@@ -408,16 +416,29 @@ const MT = (() => {
     const c0 = vue.cols[0];
     titre.innerHTML = `Détail : <b>${vue.titre}</b> · ${virgule(c0.bpm)} bpm · ${c0.num}/${c0.den}`
       + (vue.n > MAXD ? ` · ${MAXD} premières mesures affichées` : "")
-      + (vue.edition ? " · <b>modifiable</b> : clic = choisir, glisser = déplacer, bord droit = durée, double-clic = ajouter"
+      + (vue.edition ? " · <b>modifiable</b>"                     // le mode d'emploi est dans l'infobulle « i »
                      : " · lecture seule (sélectionnez dans le montage pour modifier)");
     majEdition();
   }
   function majEdition() {
     if (!vue || !vue.edition) return;
     const ch = [...vue.choix], n = ch.length;
-    $("#mt-notes-info").textContent = n ? `${n} note(s) sélectionnée(s)` + (n === 1 ? ` : ${nomNote(ch[0].p, ch[0].ch)}` : "") : "aucune note sélectionnée";
+    const noms = [...new Set(ch.sort((a, b) => a.d - b.d || a.p - b.p).map(x => nomNote(x.p, x.ch)))];   // nom(s) des notes choisies
+    $("#mt-note-choisie").textContent = noms.slice(0, 4).join(" · ") + (noms.length > 4 ? " …" : "");
+    const aide = [n ? `${n} note${n > 1 ? "s" : ""} sélectionnée${n > 1 ? "s" : ""} : ${noms.join(", ")}` : "Aucune note sélectionnée",
+      "Ajouter double-clic : nouvelle note",
+      "Ctrl+A tout",
+      "Modifier : étirer bord droit pour la durée · ↑ ↓ demi-ton · Maj+↑ ↓ octave",
+      "Copier : Ctrl+glisser · Ctrl+D à la suite · Ctrl+C puis Ctrl+V à la tête de lecture",
+      "Échap : désélectionner, puis fermer le détail"].join("\n");
+    $("#mt-aide-notes").title = aide;
+    $("#mt-aide-notes").setAttribute("aria-label", aide);
     for (const id of ["mt-vel", "mt-vel-moins", "mt-vel-plus", "mt-oct-bas", "mt-dt-bas", "mt-dt-haut", "mt-oct-haut", "mt-notes-suppr"]) $("#" + id).disabled = !n;
-    if (n) { const m = Math.round(ch.reduce((t, x) => t + x.vel, 0) / n); $("#mt-vel").value = m; $("#mt-velv").textContent = m; }
+    $("#mt-fusion").disabled = !groupesFusion().length;
+    if (n) {                                       // le curseur montre la moyenne ; le déplacer décale toutes les notes
+      const m = Math.round(ch.reduce((t, x) => t + x.vel, 0) / n);
+      $("#mt-vel").value = m; $("#mt-vel").dataset.depart = m; $("#mt-velv").textContent = m;
+    }
     else $("#mt-velv").textContent = "—";
     $("#mt-notes-orig").disabled = !vue.cols.some(c => c.retouchee);
   }
@@ -428,6 +449,52 @@ const MT = (() => {
   function supprimeNotes() {
     if (!vue || !vue.edition || !vue.choix.size) return;
     vue.notes = vue.notes.filter(n => !vue.choix.has(n)); vue.choix.clear(); valideNotes();
+  }
+  // fusionner : les notes choisies de même hauteur sur une même ligne n'en font plus qu'une, de la première attaque
+  // à la fin de la dernière (avec la force de la première)
+  function groupesFusion() {
+    const g = new Map();
+    for (const n of vue.choix) { const k = `${n.ch}:${n.p}`; if (!g.has(k)) g.set(k, []); g.get(k).push(n); }
+    return [...g.values()].filter(x => x.length >= 2);
+  }
+  function fusionneNotes() {
+    if (!vue || !vue.edition) return;
+    const groupes = groupesFusion();
+    if (!groupes.length) return majInfo("pour fusionner, sélectionnez au moins deux notes de même hauteur");
+    const enlever = new Set();
+    for (const g of groupes) {
+      g.sort((a, b) => a.d - b.d);
+      g[0].f = Math.max(...g.map(n => n.f));
+      g.slice(1).forEach(n => enlever.add(n));
+    }
+    vue.notes = vue.notes.filter(n => !enlever.has(n));
+    for (const n of enlever) vue.choix.delete(n);
+    valideNotes();
+  }
+  // copier / coller / dupliquer des notes (Ctrl+C, Ctrl+V, Ctrl+D quand on travaille dans le détail)
+  let presseNotes = null;
+  function copieNotes() {
+    if (!vue || !vue.edition || !vue.choix.size) return majInfo("sélectionnez d'abord des notes");
+    const ns = [...vue.choix], d0 = Math.min(...ns.map(n => n.d));
+    presseNotes = ns.map(n => ({ch: n.ch, p: n.p, vel: n.vel, d: n.d - d0, l: n.f - n.d}));
+    majInfo(`${ns.length} note(s) copiée(s)`);
+  }
+  function poseNotes(pos, modele) {
+    const nouv = modele.map(x => ({ch: x.ch, p: x.p, vel: x.vel, d: pos + x.d, f: pos + x.d + x.l})).filter(n => n.d < vue.total);
+    if (!nouv.length) return majInfo("pas de place pour coller ici");
+    vue.notes.push(...nouv); vue.choix = new Set(nouv); valideNotes();
+  }
+  function colleNotes() {
+    if (!presseNotes) return majInfo("rien à coller : copiez d'abord des notes (Ctrl+C)");
+    if (!vue || !vue.edition) return;
+    const m = TR.mesure() - (vue.de - 1), i = Math.floor(m);     // à la tête de lecture si elle est dans le détail,
+    const fin = vue.choix.size ? Math.max(...[...vue.choix].map(n => n.f)) : 0;   // sinon juste après la sélection
+    poseNotes(i >= 0 && i < vue.cols.length ? cale(vue.cols[i].off + (m - i) * vue.cols[i].L) : cale(fin), presseNotes);
+  }
+  function dupliqueNotes() {
+    if (!vue || !vue.edition || !vue.choix.size) return majInfo("sélectionnez d'abord des notes");
+    const ns = [...vue.choix], d0 = Math.min(...ns.map(n => n.d)), f0 = Math.max(...ns.map(n => n.f));
+    poseNotes(cale(f0), ns.map(n => ({ch: n.ch, p: n.p, vel: n.vel, d: n.d - d0, l: n.f - n.d})));
   }
 
   // souris dans le détail
@@ -441,10 +508,12 @@ const MT = (() => {
     const t = touchee(x, y);
     cD.setPointerCapture(e.pointerId);
     if (t) {
-      if (e.ctrlKey || e.shiftKey) { vue.choix.has(t.n) ? vue.choix.delete(t.n) : vue.choix.add(t.n); }
-      else if (!vue.choix.has(t.n)) { vue.choix.clear(); vue.choix.add(t.n); }
-      const bord = x >= t.x + t.w - 5 && t.w >= 8;
-      gesteD = {type: bord ? "duree" : "deplace", x0: x, y0: y, n: t.n, l: t.l, bouge: false};
+      const avait = vue.choix.has(t.n), bord = x >= t.x + t.w - 5 && t.w >= 8;
+      if (e.shiftKey) { avait ? vue.choix.delete(t.n) : vue.choix.add(t.n); }
+      else if (e.ctrlKey) vue.choix.add(t.n);        // Ctrl : glisser = copier ; simple clic = (dé)sélectionner (pointerup)
+      else if (!avait) { vue.choix.clear(); vue.choix.add(t.n); }
+      gesteD = {type: bord ? "duree" : "deplace", x0: x, y0: y, n: t.n, l: t.l, bouge: false,
+                copie: e.ctrlKey && !e.shiftKey && !bord, avait, note: t.n};
     } else {
       if (!e.shiftKey && !e.ctrlKey) vue.choix.clear();
       gesteD = {type: "cadre", x0: x, y0: y, avant: new Set(vue.choix)};
@@ -457,6 +526,11 @@ const MT = (() => {
     const g = gesteD, dt = (x - g.x0) / vue.sx;
     if (Math.abs(x - g.x0) > 3 || Math.abs(y - g.y0) > 3) g.bouge = true;
     if (!g.bouge) return;
+    if (g.copie && !g.copies) {                      // Ctrl + glisser : on déplace des copies, les originales restent
+      g.copies = new Map();
+      for (const n of vue.choix) { const c = {ch: n.ch, p: n.p, vel: n.vel, d: n.d, f: n.f}; g.copies.set(n, c); vue.notes.push(c); }
+      g.originales = new Set(vue.choix); vue.choix = new Set(g.copies.values()); g.n = g.copies.get(g.n);
+    }
     if (g.type === "deplace") {
       const dec = cale(g.n.d + dt) - g.n.d, dp = Math.round((g.y0 - y) / g.l.hn);
       for (const n of vue.choix) {
@@ -478,6 +552,7 @@ const MT = (() => {
   cD.addEventListener("pointerup", () => {
     const g = gesteD; gesteD = null;
     if (!g) return;
+    if (!g.bouge && g.copie && g.avait) vue.choix.delete(g.note);   // Ctrl+clic sur une note déjà choisie : on la retire
     if (g.bouge && (g.type === "deplace" || g.type === "duree")) {
       let change = false;
       for (const n of vue.choix) {
@@ -486,6 +561,10 @@ const MT = (() => {
         n.d = n._d ?? n.d; n.f = n._f ?? n.f; n.p = n._p ?? n.p; delete n._d; delete n._f; delete n._p;
       }
       if (change) return valideNotes();
+      if (g.copies) {                                // copies lâchées à leur point de départ : on les retire
+        const copies = new Set(g.copies.values());
+        vue.notes = vue.notes.filter(n => !copies.has(n)); vue.choix = g.originales;
+      }
     }
     dessineDetail();
   });
@@ -511,7 +590,12 @@ const MT = (() => {
   }
   cD.addEventListener("mouseleave", () => bulle.hidden = true);
   $("#mt-vel").addEventListener("input", e => $("#mt-velv").textContent = e.target.value);
-  $("#mt-vel").addEventListener("change", e => { const v = +e.target.value; velNouvelle = v; surChoix(n => { n.vel = v; }); });
+  // curseur de vélocité : décale chaque note choisie de la même quantité (les nuances entre elles sont gardées)
+  $("#mt-vel").addEventListener("change", e => {
+    const v = +e.target.value, ecart = v - (+e.target.dataset.depart || v);
+    velNouvelle = v;
+    surChoix(n => { n.vel = Math.max(1, Math.min(127, n.vel + ecart)); });
+  });
   $("#mt-vel-moins").addEventListener("click", () => nuance(-10));
   $("#mt-vel-plus").addEventListener("click", () => nuance(10));
   $("#mt-oct-bas").addEventListener("click", () => transpose(-12));
@@ -519,6 +603,7 @@ const MT = (() => {
   $("#mt-dt-haut").addEventListener("click", () => transpose(1));
   $("#mt-oct-haut").addEventListener("click", () => transpose(12));
   $("#mt-notes-suppr").addEventListener("click", supprimeNotes);
+  $("#mt-fusion").addEventListener("click", fusionneNotes);
   $("#mt-notes-orig").addEventListener("click", notesOrigine);
 
   function dessineTout() { dessineSource(); dessineMontage(); dessineGrille(); dessineDetail(); majInfo(); }
@@ -614,6 +699,9 @@ const MT = (() => {
     else if (notes && e.key === "ArrowUp" && !c) f = () => transpose(e.shiftKey ? 12 : 1);
     else if (notes && e.key === "ArrowDown" && !c) f = () => transpose(e.shiftKey ? -12 : -1);
     else if (notes && e.key === "Escape" && vue.choix.size) f = () => { vue.choix.clear(); dessineDetail(); };
+    else if (notes && c && k === "c") f = copieNotes;        // dans le détail : les notes ; ailleurs : les mesures
+    else if (notes && c && k === "v") f = colleNotes;
+    else if (notes && c && k === "d") f = dupliqueNotes;
     else if (c && k === "x") f = couper;
     else if (c && k === "c") f = copier;
     else if (c && k === "v") f = () => coller(e.shiftKey);
@@ -632,11 +720,17 @@ const MT = (() => {
   function oublie() { try { localStorage.removeItem(cle()); } catch (e) {} }
 
   // tête de lecture sur la bande du montage et dans le détail
+  // tête de lecture : la bande du montage est redessinée à chaque image ; le détail, pendant la lecture ou dès que
+  // la position change à l'arrêt (touches du transport : mesure suivante / précédente, retour au début, clic…),
+  // et « Suivre la lecture » tourne alors aussi la page
+  let derniere = null;
   (function boucle() {
     if (ONGLET === "montage" && MORCEAU && !geste && !gesteD) {
-      if (!$("#lecteur").paused) suitLecture();
+      const t = TR.instant(), bouge = !$("#lecteur").paused || t !== derniere;   // le temps, pas la mesure :
+      derniere = t;                                     // un couper/coller de mesures ne fait pas sauter le détail
+      if (bouge) suitLecture();
       dessineMontage();
-      if (!$("#lecteur").paused) dessineDetail();
+      if (bouge) dessineDetail();
     }
     requestAnimationFrame(boucle);
   })();
