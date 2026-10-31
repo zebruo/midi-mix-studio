@@ -1,103 +1,107 @@
 # Mixeur MIDI
 
-Console de mixage **locale** pour fichiers `.mid` : on choisit le son de chaque piste parmi deux moteurs, on règle le mixage en écoutant, on remonte les mesures, on corrige les notes, puis on exporte en MP3 ou WAV.
+[Lire en français](README.fr.md)
 
-- **FluidSynth + GeneralUser GS** : rendu « intimiste », sons General MIDI (piano, guitares, batteries…)
-- **sfizz + Salamander Grand Piano + Virtual Playing Orchestra** : rendu « lyrique », vrai piano et orchestre
+A **local** mixing console for `.mid` files: choose the sound of each track from two engines, adjust the mix while listening, rearrange bars, edit notes, then export to MP3 or WAV.
 
-L'application tourne sur le PC (`http://localhost:8765`, accessible seulement depuis cette machine) et s'utilise dans le navigateur. Rien n'est envoyé sur Internet, et le serveur n'obéit qu'à sa propre console : les requêtes venant d'un autre site ouvert dans le navigateur sont refusées.
+- **FluidSynth + GeneralUser GS**: an "intimate" sound, General MIDI instruments (piano, guitars, drum kits…)
+- **sfizz + Salamander Grand Piano + Virtual Playing Orchestra**: a "lyrical" sound, real piano and orchestra
 
-## Aperçu
+The application runs on your PC (`http://localhost:8765`, reachable only from this machine) and is used in the web browser. Nothing is sent over the Internet, and the server only obeys its own console: requests coming from any other website open in the browser are refused.
 
-![Onglet Mixage : un son, un volume et un panoramique par piste](docs/console-mixage.png)
+The interface is in French; the tab and button names below are given as they appear on screen.
 
-*Onglet **Mixage** : chaque piste choisit son son (GeneralUser ou sfizz), son volume et son panoramique ; la barre de transport joue le mixage.*
+## Overview
 
-## Fonctions
+![Mixage tab: a sound, a volume and a pan setting for each track](docs/console-mixage.png)
 
-**Mixage**
-- Par piste : son (recherche dans les deux moteurs, en français ou en anglais), volume, panoramique, muet / solo, vumètre
-- Écho de salle, volume général en LUFS, fondu de fin
-- Mixage mis à jour pendant l'écoute ; chaque piste rendue est gardée en cache
-- Export MP3 / WAV normalisé, à côté du morceau
+***Mixage** (mixing) tab: each track chooses its sound (GeneralUser or sfizz), its volume and its pan; the transport bar plays the mix.*
 
-**Montage**
-- Mesures entières : couper, copier, coller, dupliquer, déplacer, avec des raccords propres
-- Piano-roll des mesures sélectionnées : déplacer, allonger, ajouter, supprimer, transposer des notes
-- Boucle sur les mesures sélectionnées, détail qui suit la lecture
+## Features
 
-![Onglet Montage : les mesures, la grille des pistes et le détail des notes](docs/console-montage.png)
+**Mixage (mixing)**
+- Per track: sound (search across both engines, in French or English), volume, pan, mute / solo, level meter
+- Room reverb, overall loudness in LUFS, fade-out at the end
+- The mix updates while you listen; each rendered track is kept in a cache
+- Normalized MP3 / WAV export, saved next to the piece
 
-**Événements**
-- Tous les événements MIDI en tableau filtrable et modifiable, ou en texte commenté
-- Actions groupées : vélocité, transposition, décalage, durée, notes liées, calage sur le temps
+**Montage (arranging)**
+- Whole bars: cut, copy, paste, duplicate, move, with clean joins
+- Piano roll of the selected bars: move, lengthen, add, delete and transpose notes
+- Loop over the selected bars; the detail view follows playback
 
-![Onglet Événements : tous les événements MIDI en tableau](docs/console-evenements.png)
+![Montage tab: the bars, the track grid and the note detail](docs/console-montage.png)
 
-**Document de travail**
-- Les trois onglets travaillent sur le même document, avec Annuler / Rétablir et des versions
-- « Enregistrer » remplace le fichier ouvert (son ancienne version est gardée dans un dossier `sauvegardes` à côté du morceau) ; « Enregistrer une copie » crée `_v2`, `_v3`… ; les réglages seuls vont dans un `.mix.json`
+**Événements (events)**
+- Every MIDI event in a table you can filter and edit, or as commented text
+- Batch actions: velocity, transposition, shift, duration, tied notes, snapping to the beat
+
+![Événements tab: every MIDI event in a table](docs/console-evenements.png)
+
+**Working document**
+- All three tabs work on the same document, with Undo / Redo and versions
+- "Enregistrer" (save) replaces the open file (its previous version is kept in a `sauvegardes` folder next to the piece); "Enregistrer une copie" (save a copy) creates `_v2`, `_v3`…; settings alone go to a `.mix.json` file
 
 ## Installation (Windows)
 
-1. **Python 3.12** ou plus récent, puis la bibliothèque MIDI et le calcul des vumètres :
+1. **Python 3.12** or later, then the MIDI library and the level-meter computation:
    ```
    pip install mido numpy
    ```
-2. **Moteurs et outils** :
+2. **Engines and tools**:
    - [FluidSynth](https://www.fluidsynth.org) (`fluidsynth.exe`)
    - [sfizz](https://sfz.tools/sfizz/) (`sfizz_render.exe`)
-   - [ffmpeg](https://ffmpeg.org) (dans le PATH, ou chemin complet dans la configuration)
-3. **Banques de sons** :
+   - [ffmpeg](https://ffmpeg.org) (on the PATH, or with its full path in the configuration)
+3. **Sound banks**:
    - [GeneralUser GS](https://www.schristiancollins.com/generaluser.php) (`GeneralUser-GS.sf2`)
-   - un dossier de banques SFZ contenant [Salamander Grand Piano](https://github.com/sfzinstruments/SalamanderGrandPiano) (`SalamanderGrandPiano-master`) et [Virtual Playing Orchestra 3](http://virtualplaying.com/virtual-playing-orchestra/) (`VPO/Virtual-Playing-Orchestra3`)
-4. **Configuration** : copier `config.exemple.json` en `config.json`, puis y indiquer :
-   - `racines` : les dossiers où chercher les morceaux `.mid`
-   - `fluidsynth`, `generaluser`, `sfizz_render`, `dossier_sfz`, `ffmpeg` : les chemins des outils et des banques
+   - a folder of SFZ banks containing [Salamander Grand Piano](https://github.com/sfzinstruments/SalamanderGrandPiano) (`SalamanderGrandPiano-master`) and [Virtual Playing Orchestra 3](http://virtualplaying.com/virtual-playing-orchestra/) (`VPO/Virtual-Playing-Orchestra3`)
+4. **Configuration**: copy `config.exemple.json` to `config.json`, then fill in:
+   - `racines`: the folders in which to look for `.mid` pieces
+   - `fluidsynth`, `generaluser`, `sfizz_render`, `dossier_sfz`, `ffmpeg`: the paths of the tools and banks
 
-   `config.json` est propre à chaque PC et n'est pas versionné.
+   `config.json` is specific to each PC and is not versioned.
 
-## Lancement
+## Starting
 
 ```
 pythonw -I mixeur.py
 ```
 
-La console s'ouvre dans le navigateur. Pour un raccourci sur le bureau, viser `pythonw.exe` avec les arguments `-I "<dossier>\mixeur.py"` et l'icône `page\favicon.ico`.
+The console opens in the web browser. For a desktop shortcut, target `pythonw.exe` with the arguments `-I "<folder>\mixeur.py"` and the icon `page\favicon.ico`.
 
-**Pour arrêter**, fermer l'onglet : le mixeur s'arrête tout seul une dizaine de secondes après la fermeture du dernier onglet.
+**To stop it**, close the tab: the mixer stops by itself about ten seconds after the last tab is closed.
 
-## Outil en ligne de commande
+## Command-line tool
 
-`midi_texte.py` s'utilise aussi seul pour lire et modifier un `.mid` dans un éditeur de texte :
+`midi_texte.py` can also be used on its own to read and edit a `.mid` file in a text editor:
 
 ```
-python midi_texte.py morceau.mid          → morceau.mid.txt
-python midi_texte.py morceau.mid.txt      → morceau_texte.mid
+python midi_texte.py piece.mid          → piece.mid.txt
+python midi_texte.py piece.mid.txt      → piece_texte.mid
 ```
 
-L'aller-retour est exact, et aucun fichier n'est jamais écrasé.
+The round trip is exact, and no file is ever overwritten.
 
-## Fichiers
+## Files
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `mixeur.py` | serveur, rendu des pistes, mixage, export |
-| `montage.py` | découpe en mesures, assemblage du montage, raccords |
-| `travail.py` | documents de travail : versions, enregistrement, noms automatiques |
-| `midi_texte.py` | conversion `.mid` ⇄ texte commenté |
-| `retouches.py` | retouches d'un morceau fabriqué par un script : les reporter dans une nouvelle version du script |
-| `page/` | la console (HTML, CSS, JavaScript) ; `page/icones/` : les icônes des boutons, une par fichier SVG |
-| `docs/` | captures d'écran de la console, pour ce README |
-| `config.exemple.json` | modèle de `config.json` |
-| `VERSION.txt` | numéro de version de l'application |
-| `LISEZMOI.txt` | mode d'emploi détaillé, onglet par onglet |
-| `cache/` | pistes rendues et travaux en cours (créé au lancement, plafonné à 2 Go, non versionné) |
+| `mixeur.py` | server, track rendering, mixing, export |
+| `montage.py` | splitting into bars, assembling the arrangement, joins |
+| `travail.py` | working documents: versions, saving, automatic names |
+| `midi_texte.py` | `.mid` ⇄ commented text conversion |
+| `retouches.py` | edits made to a piece generated by a script: carrying them over into a new version of the script |
+| `page/` | the console (HTML, CSS, JavaScript); `page/icones/`: the button icons, one SVG file each |
+| `docs/` | screenshots of the console, for this README |
+| `config.exemple.json` | template for `config.json` |
+| `VERSION.txt` | the application's version number |
+| `LISEZMOI.txt` | detailed user guide, tab by tab (in French) |
+| `cache/` | rendered tracks and work in progress (created at startup, capped at 2 GB, not versioned) |
 
 ## Versions
 
-Numérotation `MAJEUR.MINEUR.CORRECTIF` dans `VERSION.txt`, affichée en haut de la console. Chaque version est marquée par une étiquette Git (`v1.0.0`, `v1.1.0`…). Si le mixeur qui tourne a été lancé avant une mise à jour, la console demande de le relancer.
+`MAJOR.MINOR.PATCH` numbering in `VERSION.txt`, shown at the top of the console. Each version is marked by a Git tag (`v1.0.0`, `v1.1.0`…). If the running mixer was started before an update, the console asks you to restart it.
 
-## À venir
+## Coming next
 
-Automation du volume, pré-écoute d'un son, transposition et tempo, remplacement de la musique d'un film ; plus tard, une version `.exe` portable.
+Volume automation, sound preview, transposition and tempo, replacing a film's soundtrack; later, a portable `.exe` version.
