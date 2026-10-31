@@ -215,6 +215,15 @@ def analyse(chemin, reglages_de=None):
                 c["progs"].append(m.program)
             elif m.type == "control_change" and m.control == 10:
                 c["pan"] = m.value
+    # nom de piste écrit dans le fichier (« Violoncelle solo », « Soprano »…) : gardé pour un canal joué par une seule
+    # piste MIDI qui ne joue que ce canal ; sinon le nom General MIDI de l'instrument
+    noms_fichier = {}
+    for tr in mid.tracks:
+        nom_tr = next((m.name.strip() for m in tr if m.type == "track_name"), "")
+        canaux = {m.channel for m in tr if m.type == "note_on" and m.velocity}
+        for ch in canaux:
+            noms_fichier.setdefault(ch, set()).add(nom_tr if len(canaux) == 1 else "")
+    nom_fichier = lambda ch: next(iter(noms_fichier[ch])) if len(noms_fichier.get(ch, ())) == 1 else ""
     # canaux joués par plusieurs instruments : une ligne par instrument (ex. clarinette puis piano sur le canal 7)
     partages, chg, av = montage.instruments_par_canal(mid), montage.programmes(mid), mid.ticks_per_beat // 8
     par_instrument = {}
@@ -230,7 +239,8 @@ def analyse(chemin, reglages_de=None):
             continue
         if ch in partages:
             for prog in partages[ch]:
-                pistes.append({"canal": ch, "prog": prog, "nom": GM_FR[prog], "notes": par_instrument.get((ch, prog), 0),
+                pistes.append({"canal": ch, "prog": prog, "nom": GM_FR[prog], "instrument": GM_FR[prog],
+                               "notes": par_instrument.get((ch, prog), 0),
                                "son": "gu:orig", "volume": 70, "pan": round((c["pan"] - 64) / 63 * 100),
                                "muet": False, "solo": False})
             continue
@@ -246,7 +256,8 @@ def analyse(chemin, reglages_de=None):
             son = "sf:" + defaut_sf[str(ch)]
         else:
             son = "gu:orig"
-        pistes.append({"canal": ch, "prog": None, "nom": nom, "notes": c["notes"], "son": son,
+        instrument, nom = nom, nom_fichier(ch) or nom
+        pistes.append({"canal": ch, "prog": None, "nom": nom, "instrument": instrument, "notes": c["notes"], "son": son,
                        "volume": 70, "pan": round((c["pan"] - 64) / 63 * 100),
                        "muet": False, "solo": False})
     reglages = os.path.splitext(reglages_de or chemin)[0] + ".mix.json"
@@ -256,7 +267,11 @@ def analyse(chemin, reglages_de=None):
             sauve = json.load(open(reglages, encoding="utf-8"))
         except (OSError, ValueError):
             sauve = None
-    return {"chemin": chemin, "duree": round(mid.length, 1), "pistes": pistes, "reglages": sauve,
+    # repères du fichier (« Strophe 1 », « Coda »…) : la barre de transport y saute avec Ctrl + ← / →
+    marqueurs = sorted((t, m.text.strip()) for tr in mid.tracks for t, m in montage._absolus(tr)
+                       if m.type == "marker" and m.text.strip())
+    reperes = [{"t": round(s, 3), "nom": nom} for s, (_, nom) in zip(montage.secondes(mid, [t for t, _ in marqueurs]), marqueurs)]
+    return {"chemin": chemin, "duree": round(mid.length, 1), "pistes": pistes, "reglages": sauve, "reperes": reperes,
             "tempos": carte_tempos(mid), "montage": montage.structure(mid),
             "reglages_fichier": os.path.basename(reglages)}
 
@@ -966,7 +981,8 @@ def met_a_jour_script(req):
         tige = os.path.splitext(os.path.basename(ouvert))[0]
         produit = re.search(r'^PRODUIT\s*=\s*"([^"]+)"', source, re.M)
         suffixe = (tige[len(produit.group(1)):].strip("_ ") if produit and tige.startswith(produit.group(1)) else tige) or "retouches"
-        base = re.sub(r"\s+v\d+$", "", os.path.splitext(os.path.basename(script))[0])
+        # « … arrangement v10 (3) » → « … arrangement » : version et numéro de copie retirés, puis la version du morceau
+        base = re.sub(r"(\s+(v\d+|\(\d+\)))+$", "", os.path.splitext(os.path.basename(script))[0])
         cible, k = os.path.join(os.path.dirname(script), f"{base} {suffixe}.py"), 2
         while os.path.exists(cible):
             cible, k = os.path.join(os.path.dirname(script), f"{base} {suffixe} ({k}).py"), k + 1

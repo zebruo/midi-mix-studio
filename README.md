@@ -7,6 +7,12 @@ Console de mixage **locale** pour fichiers `.mid` : on choisit le son de chaque 
 
 L'application tourne sur le PC (`http://localhost:8765`, accessible seulement depuis cette machine) et s'utilise dans le navigateur. Rien n'est envoyé sur Internet, et le serveur n'obéit qu'à sa propre console : les requêtes venant d'un autre site ouvert dans le navigateur sont refusées.
 
+## Aperçu
+
+![Onglet Mixage : un son, un volume et un panoramique par piste](docs/console-mixage.png)
+
+*Onglet **Mixage** : chaque piste choisit son son (GeneralUser ou sfizz), son volume et son panoramique ; la barre de transport joue le mixage.*
+
 ## Fonctions
 
 **Mixage**
@@ -20,9 +26,13 @@ L'application tourne sur le PC (`http://localhost:8765`, accessible seulement de
 - Piano-roll des mesures sélectionnées : déplacer, allonger, ajouter, supprimer, transposer des notes
 - Boucle sur les mesures sélectionnées, détail qui suit la lecture
 
+![Onglet Montage : les mesures, la grille des pistes et le détail des notes](docs/console-montage.png)
+
 **Événements**
 - Tous les événements MIDI en tableau filtrable et modifiable, ou en texte commenté
 - Actions groupées : vélocité, transposition, décalage, durée, notes liées, calage sur le temps
+
+![Onglet Événements : tous les événements MIDI en tableau](docs/console-evenements.png)
 
 **Document de travail**
 - Les trois onglets travaillent sur le même document, avec Annuler / Rétablir et des versions
@@ -78,6 +88,7 @@ L'aller-retour est exact, et aucun fichier n'est jamais écrasé.
 | `midi_texte.py` | conversion `.mid` ⇄ texte commenté |
 | `retouches.py` | retouches d'un morceau fabriqué par un script : les reporter dans une nouvelle version du script |
 | `page/` | la console (HTML, CSS, JavaScript) ; `page/icones/` : les icônes des boutons, une par fichier SVG |
+| `docs/` | captures d'écran de la console, pour ce README |
 | `config.exemple.json` | modèle de `config.json` |
 | `VERSION.txt` | numéro de version de l'application |
 | `LISEZMOI.txt` | mode d'emploi détaillé, onglet par onglet |

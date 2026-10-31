@@ -3,6 +3,7 @@
 // (script classique : les variables et fonctions sont partagées entre les fichiers de la page)
 
 const panTxt = x => x > 0 ? "D" + x : x < 0 ? "G" + (-x) : "C";
+const infobulleNom = p => "Double-clic : renommer" + (p.instrument && p.instrument !== p.nom ? ` · instrument : ${p.instrument}` : "");
 
 function dessine() {
   NIVEAUX = null; CHOIX_SON.ferme();
@@ -10,14 +11,16 @@ function dessine() {
   tb.innerHTML = "";
   PISTES.forEach((p, i) => {
     const tr = document.createElement("tr");          // classe gu / sf (couleur du moteur) : posée par afficheSon
-    tr.innerHTML = `<td class="ch">${String(p.canal + 1).padStart(2, "0")}</td><td class="name">${p.nom}</td>
-      <td><button type="button" class="son-choix" aria-haspopup="dialog" aria-label="Son de ${p.nom}"><span class="moteur"></span><span class="son-nom"></span><span class="fleche">▾</span></button></td>
+    const nom = echappe(p.nom);
+    tr.innerHTML = `<td class="ch">${String(p.canal + 1).padStart(2, "0")}</td><td class="name" title="${echappe(infobulleNom(p))}">${nom}</td>
+      <td><button type="button" class="son-choix" aria-haspopup="dialog" aria-label="Son de ${nom}"><span class="moteur"></span><span class="son-nom"></span><span class="fleche">▾</span></button></td>
       <td class="notes">${p.notes.toLocaleString("fr-FR")}</td>
-      <td><div class="fader"><input id="vol${i}" type="range" min="0" max="100" value="${p.volume}" aria-label="Volume ${p.nom}"><span class="val">${p.volume}</span></div></td>
-      <td><div class="fader"><input id="pan${i}" class="pan" type="range" min="-100" max="100" value="${p.pan}" aria-label="Pan ${p.nom}"><span class="val">${panTxt(p.pan)}</span></div></td>
+      <td><div class="fader"><input id="vol${i}" type="range" min="0" max="100" value="${p.volume}" aria-label="Volume ${nom}"><span class="val">${p.volume}</span></div></td>
+      <td><div class="fader"><input id="pan${i}" class="pan" type="range" min="-100" max="100" value="${p.pan}" aria-label="Pan ${nom}"><span class="val">${panTxt(p.pan)}</span></div></td>
       <td><div class="vum" title="Niveau de la piste pendant l'écoute (avec son volume)"><i></i><b></b></div></td>
-      <td><div class="ms"><button class="m" type="button" aria-pressed="${p.muet}" aria-label="Muet ${p.nom}">M</button><button class="s" type="button" aria-pressed="${p.solo}" aria-label="Solo ${p.nom}">S</button></div></td>`;
+      <td><div class="ms"><button class="m" type="button" aria-pressed="${p.muet}" aria-label="Muet ${nom}">M</button><button class="s" type="button" aria-pressed="${p.solo}" aria-label="Solo ${nom}">S</button></div></td>`;
     tb.appendChild(tr);
+    tr.querySelector(".name").addEventListener("dblclick", e => renomme(e.currentTarget, p));
     // le son : un bouton qui ouvre le sélecteur (sons.js) ; choisir un son règle aussi le moteur
     const son = tr.querySelector(".son-choix");
     const afficheSon = () => {
@@ -39,6 +42,29 @@ function dessine() {
     tr.querySelector(".s").addEventListener("click", e => { p.solo = !p.solo; e.target.setAttribute("aria-pressed", p.solo); grise(); aChange(); });
   });
   grise();
+}
+// renommer une piste : double-clic sur son nom ; Entrée (ou un clic ailleurs) valide, Échap annule ; un nom vide rend
+// celui du fichier. Le nom est un réglage (.mix.json, Annuler / Rétablir), le .mid n'est pas modifié.
+function renomme(td, p) {
+  if (td.querySelector("input")) return;
+  const champ = document.createElement("input");
+  champ.type = "text"; champ.className = "nom-edit"; champ.value = p.nom; champ.maxLength = 60;
+  champ.setAttribute("aria-label", "Nom de la piste");
+  td.textContent = ""; td.appendChild(champ); champ.focus(); champ.select();
+  let fini = false;
+  const termine = garde => {
+    if (fini) return;
+    fini = true;
+    const nouveau = champ.value.trim() || p.nomOrigine;
+    if (garde && nouveau !== p.nom) { p.nom = nouveau; REG.note(); dessine(); return; }
+    td.textContent = p.nom;
+  };
+  champ.addEventListener("keydown", e => {
+    e.stopPropagation();                                // ni lecture (Espace), ni Échap du Montage pendant la saisie
+    if (e.key === "Enter") { e.preventDefault(); termine(true); }
+    else if (e.key === "Escape") { e.preventDefault(); termine(false); }
+  });
+  champ.addEventListener("blur", () => termine(true));
 }
 function grise() {
   const solo = PISTES.some(p => p.solo);

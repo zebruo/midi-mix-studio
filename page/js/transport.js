@@ -5,6 +5,7 @@
 const TR = (() => {
   const a = $("#lecteur"), toile = $("#toile"), ligne = $("#ligne");
   let carte = [{t: 0, mesure: 0, bpm: 120, num: 4, den: 4}], duree = 0, L = 0, R = 0, boucle = false, depart = 0;
+  let reperes = [];                     // repères du fichier : [{t (s), nom}] (vide pour le montage : les tempos servent)
   let ctx = null, gain = null, an = [], pic = [-90, -90], picT = [0, 0], pret = false, aJouer = false;
   let attente = false, reprise = 0, reprendre = false;  // pendant le chargement d'un nouveau mixage : où reprendre, et rejouer ?
   let relance = false;                  // nouveauContenu : un nouveau calcul suivi de la lecture est déjà prévu
@@ -148,24 +149,44 @@ const TR = (() => {
   $("#t-setL").addEventListener("click", () => poseLoc("L"));
   $("#t-setR").addEventListener("click", () => poseLoc("R"));
   $("#t-vol").addEventListener("input", e => { const v = +e.target.value; $("#t-volv").textContent = v; if (gain) gain.gain.value = v / 100; else a.volume = v / 100; });
+  // repère précédent / suivant (« Strophe 1 », « Coda »… du fichier ; sans repères : les changements de tempo).
+  // En arrière, juste après un repère (moins d'1 s), on va au précédent, comme le bouton « piste précédente » d'un lecteur.
+  function repereSuivant(sens) {
+    const points = (reperes.length ? reperes : carte.slice(1).map(s => ({t: s.t, nom: `${Math.round(s.bpm)} · ${s.num}/${s.den}`})))
+      .filter(r => r.t < duree), t = ici();
+    const r = sens > 0 ? points.find(p => p.t > t + 0.05) : [...points].reverse().find(p => p.t < t - 1);
+    if (r) { va(r.t); statut(`Repère : ${r.nom}`, "ok"); }
+    else if (sens < 0) { va(0); statut("Début du morceau", "ok"); }
+  }
+  // un temps en avant ou en arrière (dans le chiffrage de la mesure où l'on est)
+  function tempsSuivant(sens) {
+    const m = mesureA(ici()), num = seg(ici()).num;
+    const b = sens < 0 ? Math.ceil(m * num - 1e-6) - 1 : Math.floor(m * num + 1e-6) + 1;
+    va(tempsA(Math.max(0, b / num)));
+  }
   document.addEventListener("keydown", e => {
     if (saisieEnCours()) return;
     if (e.code === "Space") { e.preventDefault(); lecture(); }
     else if (e.key === "b" || e.key === "B") $("#t-boucle").click();
     else if (e.key === "Home") va(boucle ? L : 0);
-    else if (e.key === "ArrowLeft" && e.ctrlKey) mesureSuivante(-1);
-    else if (e.key === "ArrowRight" && e.ctrlKey) mesureSuivante(1);
+    // ← / → : mesure précédente / suivante ; Maj + ← / → : un temps ; Ctrl + ← / → : repère précédent / suivant.
+    // Pas quand un curseur (volume, pan…) a le focus : les flèches le règlent.
+    else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !saisieEnCours(true) && !e.altKey) {
+      e.preventDefault();
+      const sens = e.key === "ArrowLeft" ? -1 : 1;
+      e.ctrlKey ? repereSuivant(sens) : e.shiftKey ? tempsSuivant(sens) : mesureSuivante(sens);
+    }
   });
   requestAnimationFrame(tic);
   return {
     nouveauMorceau(M) { a.pause(); a.removeAttribute("src"); a.load(); attente = false; carte = M.tempos && M.tempos.length ? M.tempos : carte;
-      duree = M.duree; depart = 0; L = 0; R = Math.min(duree, tempsA(4)); affLoc(); etatLecture(); },
+      reperes = M.reperes || []; duree = M.duree; depart = 0; L = 0; R = Math.min(duree, tempsA(4)); affLoc(); etatLecture(); },
     // même morceau, autre contenu (changement d'onglet vers ou depuis le Montage, montage ou texte appliqué, autre version) :
     // on garde la position et la boucle ; si on écoutait, le nouveau contenu est calculé puis rejoué au même endroit
     nouveauContenu(M) {
       const joue = attente ? reprendre : !!a.src && !a.paused, t = ici();
       a.pause(); a.removeAttribute("src"); a.load(); attente = false;
-      carte = M.tempos && M.tempos.length ? M.tempos : carte; duree = M.duree;
+      carte = M.tempos && M.tempos.length ? M.tempos : carte; duree = M.duree; reperes = M.reperes || [];
       depart = Math.min(t, duree); R = Math.min(R, duree); L = Math.min(L, R); affLoc(); etatLecture();
       if (joue && !relance) { relance = true; setTimeout(() => { relance = false; lecture(); }, 0); }   // une fois l'onglet en place
     },

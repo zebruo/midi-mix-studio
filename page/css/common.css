@@ -15,7 +15,7 @@
 body{margin:0;background:var(--panel);color:var(--text);font:14px/1.45 var(--body);padding-inline:16px;padding-block:20px}
 label.k{font:600 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 select,button,input[type=search]{font:500 13px var(--body);color:var(--text);background:var(--rail);border:1px solid var(--line);border-radius:4px;padding:7px 10px}
-button{cursor:pointer}
+button{cursor:default}                       /* la flèche, comme dans un logiciel Windows (choix de l'utilisateur) */
 button.ico{display:inline-flex;align-items:center;justify-content:center}   /* bouton icône (SVG fait main, 16 px) */
 button.ico svg{display:block;width:16px;height:16px;fill:currentColor}
 button:disabled{opacity:.45;cursor:default}

@@ -16,7 +16,7 @@
 .mt-info b{color:var(--text);font-weight:600}
 .mt-zone{display:flex;flex-direction:column;gap:6px;background:#141619;border:1px solid #000;border-radius:4px;padding:8px}
 .mt-zone canvas{display:block;width:100%}
-.mt-bande{height:52px;cursor:pointer;touch-action:none}
+.mt-bande{height:52px;cursor:default;touch-action:none}
 #mt-grille{cursor:default}
 .mt-detail{display:flex;flex-direction:column;gap:6px}
 .mt-detail-tete{display:flex;gap:10px;align-items:center;justify-content:space-between}

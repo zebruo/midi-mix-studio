@@ -15,7 +15,7 @@ tr.sf .son-choix .moteur{background:color-mix(in srgb,var(--teal) 18%,transparen
 .choix-champ:focus{outline:2px solid var(--amber);outline-offset:0}
 .choix-liste{flex:1;overflow-y:auto;padding:0 0 6px}
 .choix-groupe{padding:8px 12px 3px;font:600 11px var(--display);letter-spacing:.1em;text-transform:uppercase}
-.choix-son-ligne{padding:4px 12px 4px 20px;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.choix-son-ligne{padding:4px 12px 4px 20px;font-size:12.5px;cursor:default;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .choix-son-ligne.courant{font-weight:600}
 .choix-son-ligne.courant::before{content:"✓ ";color:var(--amber);margin-left:-12px}
 .choix-son-ligne.actif{background:var(--rail)}

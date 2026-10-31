@@ -46,6 +46,10 @@ Onglet « Mixage »
    choisir un son règle aussi le moteur. Recherche sans accents, en français ou en anglais
    (cello = violoncelle, cor = horn…) ; ↑/↓ puis Entrée, Échap pour fermer.
    « Son d'origine » garde les instruments prévus dans le fichier.
+   Nom de la piste : celui écrit dans le fichier (« Violoncelle solo », « Soprano »…), sinon
+   l'instrument General MIDI (rappelé dans l'infobulle). Double-clic sur le nom pour le
+   renommer (Entrée valide, Échap annule, vide = nom du fichier) : le nouveau nom est gardé
+   avec les réglages (.mix.json), le .mid n'est pas modifié ; ↶ Annuler le rétablit.
    Colonne « Niveau » : vumètre de chaque piste pendant l'écoute (avec son volume ; muet et
    solo agissent tout de suite).
    Un canal qui change d'instrument en cours de morceau (ex. clarinette puis piano sur le
@@ -54,6 +58,11 @@ Onglet « Mixage »
    « prêt » ; pendant un calcul (écoute, mise à jour, export…), un anneau qui tourne et le
    temps écoulé ; ensuite « ✓ à jour » et la durée du calcul pendant 5 s, puis « prêt » ;
    « échec » si le calcul n'a pas abouti (le message est en bas de la page).
+   Clavier du transport : Espace = lecture / pause, ← / → = mesure précédente / suivante
+   (Maj + ← / → : un temps ; Ctrl + ← / → : repère précédent / suivant, ex. « Strophe 2 »,
+   « Coda », ou le changement de tempo voisin si le fichier n'a pas de repères),
+   Origine = au début (ou au début de la boucle), B = boucle.
+   Quand un curseur (volume, pan…) a été cliqué, les flèches le règlent : cliquer ailleurs.
 3. Écouter : ▶ dans la barre de transport (ou la barre d'espace). La première fois, les
    pistes sont calculées, 4 à la fois (10 à 20 s ; la touche ▶ clignote et « calcul… »
    s'affiche), puis la lecture démarre. Ensuite, chaque réglage (solo, muet, volume, pan,
@@ -85,7 +94,8 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
 - Détail : les notes des mesures sélectionnées (16 au plus), piste par piste ; survol = nom de
   la note (Do3 = do du milieu), vélocité, position, durée. Sur des mesures du MONTAGE, les
   notes se modifient (cette copie de la mesure seulement, marquée ✎) : clic = choisir,
-  glisser = déplacer, bord droit = durée, double-clic = ajouter, Suppr = supprimer,
+  glisser = déplacer (Maj + glisser : dans le temps seulement, la note garde sa hauteur),
+  bord droit = durée (le curseur devient ↔), double-clic = ajouter, Suppr = supprimer,
   ↑/↓ = demi-ton, Maj+↑/↓ = octave ; vélocité par le curseur ; « Notes d'origine ».
   Dupliquer : Ctrl + glisser une note (ou les notes choisies) en laisse une copie ; Ctrl+D
   copie les notes choisies juste après elles ; Ctrl+C / Ctrl+V : coller à la tête de lecture

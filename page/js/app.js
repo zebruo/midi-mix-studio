@@ -3,7 +3,8 @@
 // (script classique : les variables et fonctions sont partagées entre les fichiers de la page)
 
 const reglages = () => ({version: 1, reverb: +$("#reverb").value, lufs: +$("#lufs").value, fondu: +$("#fondu").value,
-  pistes: PISTES.map(p => ({canal: p.canal, prog: p.prog, son: p.son, volume: p.volume, pan: p.pan, muet: p.muet, solo: p.solo}))});
+  pistes: PISTES.map(p => ({canal: p.canal, prog: p.prog, son: p.son, volume: p.volume, pan: p.pan, muet: p.muet, solo: p.solo,
+                            ...(p.nom !== p.nomOrigine ? {nom: p.nom} : {})}))});   // nom : seulement s'il a été changé
 const fmt = {reverb: v => v + " %", lufs: v => v, fondu: v => v + " s"};
 for (const id of ["reverb", "lufs", "fondu"]) {
   $("#" + id).addEventListener("input", e => e.target.nextElementSibling.textContent = fmt[id](e.target.value));
@@ -86,7 +87,7 @@ async function prepare() {
 function appliqueReglages(r) {
   // un réglage sans instrument (ancien fichier) vaut pour toutes les lignes de son canal
   for (const s of r.pistes || []) for (const p of PISTES)
-    if (p.canal === s.canal && (s.prog == null || s.prog === p.prog)) Object.assign(p, {...s, prog: p.prog});
+    if (p.canal === s.canal && (s.prog == null || s.prog === p.prog)) { Object.assign(p, {...s, prog: p.prog}); p.nom = s.nom || p.nomOrigine; }
   if (r.reverb !== undefined) { $("#reverb").value = r.reverb; $("#reverb").nextElementSibling.textContent = r.reverb + " %"; }
   if (r.lufs !== undefined) { $("#lufs").value = r.lufs; $("#lufs").nextElementSibling.textContent = r.lufs; }
   $("#fondu").value = r.fondu || 0; $("#fondu").nextElementSibling.textContent = (r.fondu || 0) + " s";
@@ -99,6 +100,7 @@ function appliqueDoc(r, ouverture) {
     throw new Error(ANCIENNE_VERSION);
   const anciennes = PISTES;
   DOC = r.doc; MORCEAU = M; PISTES = M.pistes;
+  for (const p of PISTES) p.nomOrigine = p.nom;     // nom donné par le fichier ; p.nom peut être renommé dans la console
   let note = "";
   if (ouverture) {
     const reg = ouverture.reglages || M.reglages;
@@ -108,7 +110,8 @@ function appliqueDoc(r, ouverture) {
   } else {
     for (const p of PISTES) {
       const q = anciennes.find(x => x.canal === p.canal && x.prog === p.prog);
-      if (q) Object.assign(p, {son: q.son, volume: q.volume, pan: q.pan, muet: q.muet, solo: q.solo});
+      if (q) Object.assign(p, {son: q.son, volume: q.volume, pan: q.pan, muet: q.muet, solo: q.solo,
+                               ...(q.nom !== q.nomOrigine ? {nom: q.nom} : {})});
     }
   }
   ouverture ? REG.depart() : REG.suit();

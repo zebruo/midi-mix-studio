@@ -66,7 +66,9 @@ const CHOIX_SON = (() => {
     });
     liste.addEventListener("click", e => { const el = e.target.closest("[data-i]"); if (el) choisit(items[+el.dataset.i]); });
     liste.addEventListener("mousemove", e => { const el = e.target.closest("[data-i]"); if (el && +el.dataset.i !== actif) surligne(+el.dataset.i, true); });
-    document.addEventListener("pointerdown", e => { if (!fen.hidden && !fen.contains(e.target) && e.target !== cible?.bouton) ferme(); });
+    // un appui ailleurs ferme la fenêtre ; sur le bouton du son (ou son nom, son badge, sa flèche), c'est le clic
+    // qui la referme (ouvre() sur le même bouton)
+    document.addEventListener("pointerdown", e => { if (!fen.hidden && !fen.contains(e.target) && !cible?.bouton.contains(e.target)) ferme(); });
     window.addEventListener("resize", () => { if (!fen.hidden) place(); });
     document.addEventListener("scroll", e => { if (!fen.hidden && !fen.contains(e.target)) place(); }, true);
   }

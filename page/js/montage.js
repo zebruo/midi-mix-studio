@@ -428,7 +428,7 @@ const MT = (() => {
     const aide = [n ? `${n} note${n > 1 ? "s" : ""} sélectionnée${n > 1 ? "s" : ""} : ${noms.join(", ")}` : "Aucune note sélectionnée",
       "Ajouter double-clic : nouvelle note",
       "Ctrl+A tout",
-      "Modifier : étirer bord droit pour la durée · ↑ ↓ demi-ton · Maj+↑ ↓ octave",
+      "Modifier : étirer bord droit pour la durée · Maj+glisser : même hauteur · ↑ ↓ demi-ton · Maj+↑ ↓ octave",
       "Copier : Ctrl+glisser · Ctrl+D à la suite · Ctrl+C puis Ctrl+V à la tête de lecture",
       "Échap : désélectionner, puis fermer le détail"].join("\n");
     $("#mt-aide-notes").title = aide;
@@ -501,6 +501,14 @@ const MT = (() => {
   function point(e) { const r = cD.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; }
   const touchee = (x, y) => [...cibles].reverse().find(c => x >= c.x - 1 && x <= c.x + c.w + 1 && y >= c.y && y <= c.y + c.h);
   const ligneA = y => vue.lignes.find(l => y >= l.y && y < l.y + l.h);
+  // bord droit d'une note (étirer la durée) : 30 % de sa largeur, jusqu'à 10 px ; 40 % pour une note étroite
+  const surBord = (t, x) => x >= t.x + t.w - (t.w < 10 ? t.w * 0.4 : Math.min(10, t.w * 0.3));
+  // curseur : ↔ sur le bord droit d'une note, main sur la note, croix dans le vide (lasso, double-clic = ajouter)
+  function curseur(x, y, e) {
+    if (!vue || !vue.edition || x < GOUT) return cD.style.cursor = "";
+    const t = touchee(x, y);
+    cD.style.cursor = !t ? "crosshair" : surBord(t, x) ? "ew-resize" : e.ctrlKey ? "copy" : "grab";
+  }
   cD.addEventListener("pointerdown", e => {
     if (!vue || !vue.edition) return;
     const {x, y} = point(e); if (x < GOUT) return;
@@ -508,12 +516,15 @@ const MT = (() => {
     const t = touchee(x, y);
     cD.setPointerCapture(e.pointerId);
     if (t) {
-      const avait = vue.choix.has(t.n), bord = x >= t.x + t.w - 5 && t.w >= 8;
-      if (e.shiftKey) { avait ? vue.choix.delete(t.n) : vue.choix.add(t.n); }
+      const avait = vue.choix.has(t.n), bord = surBord(t, x);
+      cD.style.cursor = bord ? "ew-resize" : e.ctrlKey ? "copy" : "grabbing";
+      // Maj : clic = ajouter / retirer de la sélection (le retrait au relâcher, si la note n'a pas bougé) ;
+      // glisser = déplacer dans le temps seulement (voir pointermove)
+      if (e.shiftKey) vue.choix.add(t.n);
       else if (e.ctrlKey) vue.choix.add(t.n);        // Ctrl : glisser = copier ; simple clic = (dé)sélectionner (pointerup)
       else if (!avait) { vue.choix.clear(); vue.choix.add(t.n); }
       gesteD = {type: bord ? "duree" : "deplace", x0: x, y0: y, n: t.n, l: t.l, bouge: false,
-                copie: e.ctrlKey && !e.shiftKey && !bord, avait, note: t.n};
+                copie: e.ctrlKey && !e.shiftKey && !bord, avait, note: t.n, majRetire: e.shiftKey && avait};
     } else {
       if (!e.shiftKey && !e.ctrlKey) vue.choix.clear();
       gesteD = {type: "cadre", x0: x, y0: y, avant: new Set(vue.choix)};
@@ -522,7 +533,7 @@ const MT = (() => {
   });
   cD.addEventListener("pointermove", e => {
     const {x, y} = point(e);
-    if (!gesteD) return survol(e, x, y);
+    if (!gesteD) { curseur(x, y, e); return survol(e, x, y); }
     const g = gesteD, dt = (x - g.x0) / vue.sx;
     if (Math.abs(x - g.x0) > 3 || Math.abs(y - g.y0) > 3) g.bouge = true;
     if (!g.bouge) return;
@@ -532,7 +543,8 @@ const MT = (() => {
       g.originales = new Set(vue.choix); vue.choix = new Set(g.copies.values()); g.n = g.copies.get(g.n);
     }
     if (g.type === "deplace") {
-      const dec = cale(g.n.d + dt) - g.n.d, dp = Math.round((g.y0 - y) / g.l.hn);
+      // Maj enfoncé (à tout moment du geste) : la hauteur ne change pas, la note reste sur sa ligne
+      const dec = cale(g.n.d + dt) - g.n.d, dp = e.shiftKey ? 0 : Math.round((g.y0 - y) / g.l.hn);
       for (const n of vue.choix) {
         const l = vue.lignes.find(r => r.ns.includes(n));
         n._d = Math.max(0, Math.min(vue.total - 1, n.d + dec)); n._f = n._d + (n.f - n.d);
@@ -549,10 +561,11 @@ const MT = (() => {
     }
     dessineDetail();
   });
-  cD.addEventListener("pointerup", () => {
+  cD.addEventListener("pointerup", e => {
     const g = gesteD; gesteD = null;
     if (!g) return;
-    if (!g.bouge && g.copie && g.avait) vue.choix.delete(g.note);   // Ctrl+clic sur une note déjà choisie : on la retire
+    const p = point(e); curseur(p.x, p.y, e);
+    if (!g.bouge && ((g.copie && g.avait) || g.majRetire)) vue.choix.delete(g.note);   // Ctrl/Maj+clic sur une note déjà choisie : retirée
     if (g.bouge && (g.type === "deplace" || g.type === "duree")) {
       let change = false;
       for (const n of vue.choix) {
