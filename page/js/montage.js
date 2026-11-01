@@ -180,9 +180,16 @@ const MT = (() => {
       if ((i === 1 || i % pas === 0) && x + g.measureText(txt).width <= W) g.fillText(txt, x, H - 1);
     }
   }
-  function cadre(g, x, larg, H, actif) {
+  function cadre(g, x, larg, H, actif, poignees) {
     g.fillStyle = actif ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.07)"; g.fillRect(x, 12, larg, H - 22);
     g.strokeStyle = actif ? "#ffae3c" : "#8a8f99"; g.lineWidth = 2; g.strokeRect(x + 1, 13, larg - 2, H - 24);
+    if (poignees && actif) { poignee(g, x + 1, H); poignee(g, x + larg - 1, H); }
+  }
+  // poignée d'un bord de la sélection (à tirer pour l'élargir ou la réduire) : pastille ambre, prise sombre au milieu
+  function poignee(g, x, H) {
+    const h = Math.min(20, H - 28), y = 13 + (H - 24 - h) / 2;
+    g.fillStyle = "#ffae3c"; g.beginPath(); g.roundRect(x - 4.5, y, 9, h, 2.5); g.fill();
+    g.strokeStyle = "#5a3a0c"; g.lineWidth = 1; g.beginPath(); g.roundRect(x - 1.5, y + 3.5, 3, h - 7, 1); g.stroke();
   }
   function dessineSource() {
     const {g, W, H} = prepare(cS, 52); if (!MORCEAU) return;
@@ -220,7 +227,7 @@ const MT = (() => {
       i0 += n;
     }
     graduation(g, barres.length, w, H, i => i);
-    if (sel) cadre(g, GOUT + (sel.de - 1) * w, (sel.a - sel.de + 1) * w, H, focus !== "src");
+    if (sel) cadre(g, GOUT + (sel.de - 1) * w, (sel.a - sel.de + 1) * w, H, focus !== "src", true);
     if (geste && geste.type === "deplace" && geste.k !== null) { g.fillStyle = "#ffae3c"; g.fillRect(GOUT + geste.k * w - 2, 0, 4, H); }
     if (ONGLET === "montage") {
       const m = TR.mesure();
@@ -649,20 +656,27 @@ const MT = (() => {
     dessineTout();
   });
   cM.addEventListener("pointermove", e => {
-    if (!geste) return;
+    if (!geste) { cM.style.cursor = bordSel(e) ? "ew-resize" : ""; return; }
     const p = ou(cM, e, barres.length);
-    if (geste.type === "choix") { sel = {de: Math.min(geste.ancre, p.i), a: Math.max(geste.ancre, p.i)}; majInfo(); }
+    if (geste.type === "bord") {                   // tirer une poignée : le bord suit la barre de mesure la plus proche
+      sel = geste.cote === "de" ? {de: Math.min(sel.a, Math.max(1, p.k + 1)), a: sel.a}
+                                : {de: sel.de, a: Math.max(sel.de, Math.min(barres.length, p.k))};
+      majInfo();
+    }
+    else if (geste.type === "choix") { sel = {de: Math.min(geste.ancre, p.i), a: Math.max(geste.ancre, p.i)}; majInfo(); }
     else if (Math.abs(e.clientX - geste.x0) > 4) geste.k = p.k;
     dessineMontage();
   });
-  cM.addEventListener("pointerup", () => {
+  cM.addEventListener("pointerup", e => {
     if (geste && geste.type === "deplace") {
       const g = geste; geste = null;
       if (g.k !== null) return deplace(g.k);
       sel = {de: g.i, a: g.i};
     }
     geste = null; dessineTout();
+    cM.style.cursor = bordSel(e) ? "ew-resize" : "";
   });
+  cM.addEventListener("pointerleave", () => { if (!geste) cM.style.cursor = ""; });
   cM.addEventListener("dblclick", e => {
     const p = ou(cM, e, barres.length);
     if (p.dedans && ONGLET === "montage") TR.vaMesure(p.i - 1);

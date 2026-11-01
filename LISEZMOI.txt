@@ -82,6 +82,7 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
 -----------------------------------------------------------------
 - Bande « Original » (le document en arrivant dans l'onglet) : glisser pour choisir des
   mesures à copier. Bande « Montage » : glisser pour sélectionner (Maj+clic pour étendre),
+  tirer une des poignées ambre de la sélection pour l'élargir ou la réduire d'un côté,
   glisser une sélection pour la déplacer, double-clic pour s'y placer à l'écoute.
 - Couper (Ctrl+X), Copier (Ctrl+C), Coller avant (Ctrl+V) / après (Ctrl+Maj+V),
   Dupliquer (Ctrl+D), Supprimer (Suppr), Garder la sélection ; « Abandonner le montage »
