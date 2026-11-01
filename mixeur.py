@@ -803,13 +803,11 @@ def mixe(req):
     # mixage de ce qu'on écoute, avec le même gain + limiteur (pas de saturation)
     e, ch = graphe([(p, fichiers[ligne(p)]) for p in actives], reverb)
     if cible != "ecoute":
-        # un document de travail s'exporte à côté du morceau (ou de sa copie enregistrée), pas dans le cache
+        # un document de travail s'exporte à côté du morceau (ou de sa copie enregistrée), pas dans le cache ;
+        # toujours le même fichier (morceau_mix.mp3) : l'export précédent est d'abord gardé dans « sauvegardes »
         nom = req.get("base") if req.get("base") and dans_racines(req["base"], travail_compris=False) else chemin
-        base = os.path.splitext(nom)[0] + "_mix"
-        ext = ".mp3" if cible == "mp3" else ".wav"
-        sortie, k = base + ext, 2
-        while os.path.exists(sortie):
-            sortie, k = f"{base}_{k}{ext}", k + 1
+        sortie = os.path.splitext(nom)[0] + "_mix" + (".mp3" if cible == "mp3" else ".wav")
+        TRAVAUX.sauvegarde(sortie)
     ecrit_mixage(req, e, ch, gain, lis_mid(chemin).length, sortie)
     return {"fichier": sortie, "url": "/cache/ecoute/" + os.path.basename(sortie) if cible == "ecoute" else None,
             "pistes": len(actives), "recalculees": recalc, "secondes": round(time.time() - debut, 1),
@@ -1040,9 +1038,9 @@ def lance_script(script, sortie, sans_retouches):
 
 
 def met_a_jour_script(req):
-    """Écrit, à côté du script d'origine, une nouvelle version du script = même recette + bloc RETOUCHES /
-    REGLAGES qui reproduit le document en cours (avec ses retouches) ; jamais d'écrasement. Puis vérifie que ce
-    nouveau script redonne exactement le morceau."""
+    """Reporte dans le script lui-même (même recette) le bloc RETOUCHES / REGLAGES qui reproduit le document en
+    cours (avec ses retouches) ; l'ancien script est d'abord gardé dans le dossier « sauvegardes » à côté de lui.
+    Puis vérifie que le script redonne exactement le morceau."""
     d = TRAVAUX.charge(req.get("doc"))
     ouvert, actuel = d["copie"] or d["original"], TRAVAUX.chemin(d)
     script = script_du_morceau(ouvert, lis_mid(actuel))
@@ -1058,14 +1056,8 @@ def met_a_jour_script(req):
         recette = lance_script(script, os.path.join(tmp, "recette.mid"), sans_retouches=True)
         morceau = mido.MidiFile(actuel)
         liste = retouches.compare(recette, morceau)
-        tige = os.path.splitext(os.path.basename(ouvert))[0]
-        produit = re.search(r'^PRODUIT\s*=\s*"([^"]+)"', source, re.M)
-        suffixe = (tige[len(produit.group(1)):].strip("_ ") if produit and tige.startswith(produit.group(1)) else tige) or "retouches"
-        # « … arrangement v10 (3) » → « … arrangement » : version et numéro de copie retirés, puis la version du morceau
-        base = re.sub(r"(\s+(v\d+|\(\d+\)))+$", "", os.path.splitext(os.path.basename(script))[0])
-        cible, k = os.path.join(os.path.dirname(script), f"{base} {suffixe}.py"), 2
-        while os.path.exists(cible):
-            cible, k = os.path.join(os.path.dirname(script), f"{base} {suffixe} ({k}).py"), k + 1
+        cible = script                                 # le script lui-même, après une sauvegarde
+        sauvegarde = TRAVAUX.sauvegarde(script)
         import pprint
         nouveau_bloc = ("# ───── RETOUCHES (écrit par le mixeur — garder ces deux lignes de repère) ─────\n"
                         f"# {len(liste)} retouche(s) faite(s) dans le mixeur sur « {os.path.basename(ouvert)} » le "
@@ -1078,7 +1070,8 @@ def met_a_jour_script(req):
         verif = retouches.compare(lance_script(cible, os.path.join(tmp, "verif.mid"), sans_retouches=False), morceau)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    return {"script": os.path.basename(cible), "retouches": len(liste), "ecarts": len(verif)}
+    return {"script": os.path.basename(cible), "retouches": len(liste), "ecarts": len(verif),
+            "sauvegarde": os.path.basename(sauvegarde) if sauvegarde else None}
 
 
 # ───────────────────────────── document de travail ─────────────────────────────

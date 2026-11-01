@@ -198,14 +198,16 @@ function afficheMorceau() {
 }
 $("#doc-enregistrer").addEventListener("click", () => enregistrer(false));
 $("#doc-version").addEventListener("click", () => enregistrer(true));
-// « Mettre à jour le script » : nouvelle version du script générateur (même recette + les retouches du document)
+// « Mettre à jour le script » : les retouches du document reportées dans le script générateur lui-même (même
+// recette), l'ancien script gardé dans « sauvegardes »
 $("#doc-script").addEventListener("click", async () => {
   if (!DOC) return;
   try {
     if (!(await appliqueEnAttente())) return;
     statut("Mise à jour du script…");
     const r = await calcul(api("/api/script/mettre-a-jour", {doc: DOC.id, reglages: reglages()}));
-    statut(`Script écrit : ${r.script} (${r.retouches} retouche(s) et les réglages de mixage), à côté de l'original — `
+    statut(`Script mis à jour : ${r.script} (${r.retouches} retouche(s) et les réglages de mixage)`
+      + (r.sauvegarde ? `, l'ancien gardé dans sauvegardes\\${r.sauvegarde}` : "") + " — "
       + (r.ecarts ? `attention : relancé, il diffère encore du morceau en ${r.ecarts} point(s).` : "vérifié : relancé, il redonne exactement ce morceau."),
       r.ecarts ? "err" : "ok");
   } catch (e) { statut(e.message, "err"); }

@@ -103,17 +103,17 @@ class Travail:
 
     def sauvegarde(self, fichier, garder=20, jours=60):
         """Copie de l'ancienne version d'un fichier avant de le remplacer, dans un dossier « sauvegardes » à côté
-        de lui (là où l'utilisateur travaille) : <dossier>\\sauvegardes\\<nom>_<date>.mid. Pour ce fichier, les
-        `garder` plus récentes sont conservées, et aucune de plus de `jours` jours. La liste des morceaux du
-        mixeur ignore les dossiers « sauvegardes »."""
+        de lui (là où l'utilisateur travaille) : <dossier>\\sauvegardes\\<nom>_<date>.mid (ou .py pour un script).
+        Pour ce fichier, les `garder` plus récentes sont conservées, et aucune de plus de `jours` jours. La liste
+        des morceaux du mixeur ignore les dossiers « sauvegardes »."""
         if not os.path.exists(fichier):
             return None
         dossier = os.path.join(os.path.dirname(fichier), DOSSIER_SAUVEGARDES)
         os.makedirs(dossier, exist_ok=True)
-        tige = os.path.splitext(os.path.basename(fichier))[0]
-        cible = os.path.join(dossier, f"{tige}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.mid")
+        tige, ext = os.path.splitext(os.path.basename(fichier))
+        cible = os.path.join(dossier, f"{tige}_{time.strftime('%Y-%m-%d_%H-%M-%S')}{ext}")
         shutil.copy(fichier, cible)                    # (pas copy2 : la date doit être celle de la sauvegarde)
-        motif = re.escape(tige) + r"_\d{4}(-\d\d){2}_\d\d(-\d\d){2}\.mid"
+        motif = re.escape(tige) + r"_\d{4}(-\d\d){2}_\d\d(-\d\d){2}" + re.escape(ext)
         anciennes = sorted(f for f in os.listdir(dossier) if re.fullmatch(motif, f))
         limite = time.time() - jours * 86400
         for i, f in enumerate(anciennes):

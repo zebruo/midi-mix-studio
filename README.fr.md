@@ -88,7 +88,7 @@ L'aller-retour est exact, et aucun fichier n'est jamais écrasé.
 | `montage.py` | découpe en mesures, assemblage du montage, raccords |
 | `travail.py` | documents de travail : versions, enregistrement, noms automatiques |
 | `midi_texte.py` | conversion `.mid` ⇄ texte commenté |
-| `retouches.py` | retouches d'un morceau fabriqué par un script : les reporter dans une nouvelle version du script |
+| `retouches.py` | retouches d'un morceau fabriqué par un script : les reporter dans le script (l'ancien gardé dans « sauvegardes ») |
 | `page/` | la console (HTML, CSS, JavaScript) ; `page/icones/` : les icônes des boutons, une par fichier SVG |
 | `docs/` | captures d'écran de la console, pour ce README |
 | `config.exemple.json` | modèle de `config.json` |

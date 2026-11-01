@@ -1,7 +1,8 @@
 """Mixeur MIDI — retouches d'un morceau fabriqué par un script (une « recette »).
 
 Un script générateur (ex. « AF017 ps25 arrangement.py ») fabrique un .mid à partir de règles. Si le .mid est ensuite
-retouché dans le mixeur, ces retouches peuvent être reportées dans une nouvelle version du script :
+retouché dans le mixeur, ces retouches peuvent être reportées dans le script lui-même (l'ancien gardé dans
+« sauvegardes ») :
 - compare(base, retouche) : liste des différences entre ce que produit la recette seule et le morceau retouché ;
 - applique(mid, retouches) : les réapplique sur ce que produit la recette (le script le fait après ses règles) ;
 - en_python(retouches, base) : les écrit en Python lisible, une ligne par retouche, avec sa position en mesures.
