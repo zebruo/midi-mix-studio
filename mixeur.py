@@ -49,12 +49,13 @@ CACHE = os.path.join(ICI, "cache")
 PISTES = os.path.join(CACHE, "pistes")
 ECOUTE = os.path.join(CACHE, "ecoute")
 MONTAGES = os.path.join(CACHE, "montages")     # montages assemblés dont des notes ont été retouchées (pour l'écoute)
-for d in (PISTES, ECOUTE, MONTAGES):
+COPIES_SFZ = os.path.join(CACHE, "sons")       # copies de sons sfz retouchées pour sfizz (sfz_pour_rendu), quelques Ko
+for d in (PISTES, ECOUTE, MONTAGES, COPIES_SFZ):
     os.makedirs(d, exist_ok=True)
 TRAVAUX = travail.Travail(os.path.join(CACHE, "travail"))   # documents de travail (jamais vidés par « Vider le cache »)
 VERROU = threading.Lock()
 QUEUE = 4.0          # secondes rendues après la dernière note (résonance, écho de salle)
-RENDU = "tempo-fixe+silences4+repetitions"  # version de la façon de rendre les pistes : la changer invalide les écoutes en cache
+RENDU = "tempo-fixe+silences4+repetitions2+relache2+sans-delai"  # version de la façon de rendre les pistes : la changer invalide les écoutes en cache
 SANS_FENETRE = 0x08000000 if os.name == "nt" else 0       # pas de fenêtre noire pour les outils
 
 GM_FR = midi_texte.GM_FR      # noms français des 128 instruments General MIDI
@@ -424,11 +425,48 @@ def fondus_silences(seule, resonance=2.0, cordes=False):
     return ",".join(filtres)
 
 
+def sfz_pour_rendu(sfz):
+    """Le son à donner à sfizz : une copie sans `delay_random` (dans le cache, « sons »), sinon l'original.
+    Ce retard tiré au hasard (0 à 12 ms dans VPO) fait parfois perdre à sfizz la fin d'une note, qui sonne alors
+    jusqu'à la fin du morceau : un Fa5 du hautbois, mesure 32 de l'Adagio BWV 974 — le tirage dépend de toutes
+    les notes précédentes, d'où un défaut qui ne se montrait jamais sur un extrait. La copie garde tout le reste et
+    retrouve les échantillons grâce à default_path. Fichiers avec #include / #define / default_path : inchangés."""
+    try:
+        with open(sfz, encoding="utf-8", errors="replace") as f:
+            texte = f.read()
+    except OSError:
+        return sfz
+    motif = re.compile(r"^\s*delay_random\s*=.*$", re.M)
+    if not motif.search(texte) or re.search(r"#include|#define|default_path", texte):
+        return sfz
+    copie = os.path.join(COPIES_SFZ, hashlib.sha1((sfz + texte).encode()).hexdigest()[:16] + ".sfz")
+    if not os.path.exists(copie):
+        dossier = os.path.dirname(os.path.abspath(sfz)).replace("\\", "/") + "/"
+        with open(copie + ".tmp", "w", encoding="utf-8") as f:
+            f.write(f"// copie de {sfz} sans delay_random (mixeur : sfz_pour_rendu)\n<control>\ndefault_path={dossier}\n"
+                    + motif.sub("", texte))
+        os.replace(copie + ".tmp", copie)
+    return copie
+
+
+def liberation_sfz(sfz, defaut=2.0):
+    """Temps (s) pendant lequel une note du son sfz résonne encore après sa fin : le plus long ampeg_release du
+    fichier, + 0,2 s de marge, au plus `defaut` (2 s : les cordes de VPO). Hautbois VPO : 0,9 → 1,1 s."""
+    try:
+        with open(sfz, encoding="utf-8", errors="replace") as f:
+            valeurs = [float(v) for v in re.findall(r"^\s*ampeg_release\s*=\s*([\d.]+)", f.read(), re.M)]
+    except OSError:
+        return defaut
+    return min(defaut, max(valeurs) + 0.2) if valeurs else defaut
+
+
 def separe_repetitions(seule, liberation=2.0, maxi=4):
     """sfizz garde à mi-volume, parfois jusqu'à la fin du morceau, une note rejouée pendant que la précédente
     s'éteint (ex. deux Do4 presque liés au psaume 25, mesure 45 du _v8). On répartit donc les notes entre plusieurs
     rendus de la même piste : une note de même hauteur rejouée moins de `liberation` s après la fin de la précédente
     part dans un autre rendu ; le mixeur additionne ensuite les rendus. → liste de MidiFile (un seul si inutile).
+    `liberation` suit la résonance du son (liberation_sfz) : avec 2 s pour tous, les trilles rapides du hautbois
+    (Adagio BWV 974, mesure 27) dépassaient les `maxi` rendus et un Ré♯ restait suspendu.
     `seule` est une piste à tempo fixe (aplatit_tempo) : 1 temps = 0,5 s."""
     sec = lambda k: k / seule.ticks_per_beat * 0.5
     ev = list(montage._absolus(seule.tracks[0]))
@@ -458,6 +496,44 @@ def separe_repetitions(seule, liberation=2.0, maxi=4):
         mf.tracks.append(tr)
         rendus.append(mf)
     return rendus
+
+
+def relache_voix(mf, liberation):
+    """sfizz garde parfois une voix qui ignore sa fin de note, même sans répétition (hautbois VPO, Adagio BWV 974 :
+    un Fa5 de la mesure 32 sonnait jusqu'à la fin, mais seulement après tout ce qui précède). Remède : un
+    « toutes notes relâchées » (CC 123) dans chaque vrai silence du rendu — plus aucune note tenue, pédale de
+    sustain levée, et aucune attaque pendant `liberation` s. sfizz coupe NET le son à ce message (comme un CC 120) :
+    on l'envoie donc seulement une fois la résonance normale finie (envoyé dès la fin des notes, il hachait le
+    legato). `mf` est une piste à tempo fixe (1 temps = 0,5 s). → nouveau MidiFile, une seule piste."""
+    delai = round(liberation * 2 * mf.ticks_per_beat)
+    ev = list(montage._absolus(mf.tracks[0]))
+    attaques = {}
+    for t, m in ev:
+        if m.type == "note_on" and m.velocity:
+            attaques.setdefault(m.channel, []).append(t)
+    tenues, pedale, ajouts = {}, {}, []
+    for t, m in ev:
+        if m.type == "control_change" and m.control == 64:
+            pedale[m.channel] = m.value >= 64
+        elif m.type == "note_on" and m.velocity:
+            tenues[m.channel] = tenues.get(m.channel, 0) + 1
+        elif m.type in ("note_on", "note_off"):
+            tenues[m.channel] = max(0, tenues.get(m.channel, 0) - 1)
+            if not tenues[m.channel] and not pedale.get(m.channel):
+                suivante = next((a for a in attaques.get(m.channel, []) if a >= t), None)
+                if suivante is None or suivante > t + delai:
+                    ajouts.append((t + delai, mido.Message("control_change", channel=m.channel, control=123, value=0)))
+    ev = sorted(ev + ajouts, key=lambda e: e[0])           # tri stable : à un même tick, les ajouts passent après
+    if ajouts and ev[-1][1].type != "end_of_track" and any(m.type == "end_of_track" for _, m in ev):
+        fin = max(t for t, m in ev if m.type == "end_of_track")
+        ev = [(min(t, fin), m) for t, m in ev if m.type != "end_of_track"] + [(fin, mido.MetaMessage("end_of_track"))]
+    tr, prec = mido.MidiTrack(), 0
+    for t, m in ev:
+        tr.append(m.copy(time=t - prec))
+        prec = t
+    out = mido.MidiFile(ticks_per_beat=mf.ticks_per_beat)
+    out.tracks.append(tr)
+    return out
 
 
 def rend_piste(chemin, canal, son, prog=None):
@@ -505,13 +581,17 @@ def _rend_moteurs(seule, son, cle, flac):
     temporaires = []
     try:
         wavs, commandes = [], []
-        rendus = separe_repetitions(seule) if son.startswith("sf:") else [seule]
+        if son.startswith("sf:"):
+            lib = liberation_sfz(os.path.join(CONFIG["dossier_sfz"], son[3:]))
+            rendus = [relache_voix(r, lib) for r in separe_repetitions(seule, lib)]
+        else:
+            rendus = [seule]
         for k, mf in enumerate(rendus):
             tmp_mid, wav = os.path.join(PISTES, f"{cle}.{k}.mid"), os.path.join(PISTES, f"{cle}.{k}.tmp.wav")
             temporaires += [tmp_mid, wav]
             mf.save(tmp_mid)
             if son.startswith("sf:"):
-                sfz = os.path.join(CONFIG["dossier_sfz"], son[3:])
+                sfz = sfz_pour_rendu(os.path.join(CONFIG["dossier_sfz"], son[3:]))
                 commandes.append([CONFIG["sfizz_render"], "--sfz", sfz, "--midi", tmp_mid, "--wav", wav,
                                   "-s", "48000", "-q", "3", "--use-eot"])
             else:
