@@ -155,10 +155,11 @@ const TX = (() => {
       && (!q || lignes[o.i].toLowerCase().includes(q) || lignes[o.i].toLowerCase().includes(q2)))
       .sort((a, b) => a.tick - b.tick || a.i - b.i);       // dans l'ordre du temps (puis du texte)
   }
-  // une attaque un tout petit peu avant un temps (1/8 de temps au plus, humanisation) : « ≈ 3.1 » = en réalité ce temps-là
+  // une attaque un tout petit peu avant un temps (moins de 1/8 de temps, humanisation — comme montage.avance) :
+  // « ≈ 3.1 » = en réalité ce temps-là ; une triple croche posée sur la grille n'est pas concernée
   function approx(o) {
     const temps = mes.temps(o.tick), avance = Math.floor(mes.tpb / 8);
-    if (o.genre === "fin" || o.k === 0 || temps - o.k > avance) return "";
+    if (o.genre === "fin" || o.k === 0 || temps - o.k >= avance) return "";
     const [m, t] = mes.position(o.tick + temps - o.k), d = temps - o.k;
     const quoi = t === 1 ? `1er temps de la mesure ${m}` : `${t}e temps de la mesure ${m}`;
     return `<span class="approx" title="attaque ${d} tick(s) avant le temps : en réalité le ${quoi}">≈ ${m}.${t}</span>`;

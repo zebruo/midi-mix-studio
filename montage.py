@@ -80,6 +80,13 @@ def programmes(mid):
     return res
 
 
+def avance(tpb):
+    """Attaque « en avance » : une note qui attaque MOINS de 1/8 de temps avant une barre (ou un changement
+    d'instrument) appartient à ce qui suit — humanisation. À 1/8 de temps tout juste (une triple croche posée sur
+    la grille), elle reste où elle est écrite. En ticks : t + avance(tpb) >= barre."""
+    return tpb // 8 - 1
+
+
 def programme_a(changements, t, avance):
     """Instrument d'une note qui attaque à t : celui en place à t + avance. Une note humanisée qui attaque
     un peu avant un changement d'instrument appartient donc au nouvel instrument."""
@@ -95,7 +102,7 @@ def instruments_par_canal(mid):
     """Canaux qui changent d'instrument en cours de morceau (batterie exclue) : {canal: [programmes réellement
     joués, dans l'ordre où ils apparaissent]}. Le mixeur en fait une ligne par instrument, rendue avec son
     instrument fixé dès le début : une note qui attaque un peu avant le changement ne sonne plus avec l'ancien."""
-    chg, av, vus = programmes(mid), mid.ticks_per_beat // 8, {}
+    chg, av, vus = programmes(mid), avance(mid.ticks_per_beat), {}
     for d, _, on, _ in notes(mid):
         if on.channel != 9:
             p = programme_a(chg.get(on.channel, []), d, av)
@@ -112,7 +119,7 @@ def cle_ligne(canal, prog, partages):
 def structure(mid):
     """Pour le banc de montage : temps de chaque barre de mesure et nombre de notes par mesure et par ligne."""
     bornes = bornes_mesures(mid)
-    partages, chg, av = instruments_par_canal(mid), programmes(mid), mid.ticks_per_beat // 8
+    partages, chg, av = instruments_par_canal(mid), programmes(mid), avance(mid.ticks_per_beat)
     activite, liste = {}, []                     # liste : pour le détail d'une mesure, [canal, note, vélocité, début, fin]
     for d, f, on, _ in notes(mid):
         cle = cle_ligne(on.channel, programme_a(chg.get(on.channel, []), d, av), partages)
@@ -120,7 +127,7 @@ def structure(mid):
         ligne[min(len(bornes) - 2, max(0, _mesure_de(bornes, d + av)))] += 1
         liste.append([on.channel, on.note, on.velocity, d, f])
     liste.sort(key=lambda x: x[3])
-    return {"secondes": [round(s, 6) for s in secondes(mid, bornes)], "bornes": bornes, "tpb": mid.ticks_per_beat,
+    return {"secondes": [round(s, 6) for s in secondes(mid, bornes)], "bornes": bornes, "tpb": mid.ticks_per_beat, "avance": av,
             "activite": activite, "notes": liste,
             "programmes": {str(c): v for c, v in chg.items() if c in partages}}
 
@@ -132,7 +139,7 @@ def mesures_modifiees(avant, apres):
     import difflib
 
     def par_mesure(mid):
-        bornes, av = bornes_mesures(mid), mid.ticks_per_beat // 8
+        bornes, av = bornes_mesures(mid), avance(mid.ticks_per_beat)
         res = [[] for _ in range(len(bornes) - 1)]
         for d, f, on, _ in notes(mid):
             k = min(len(res) - 1, max(0, _mesure_de(bornes, d + av)))
@@ -179,12 +186,12 @@ def normalise(segments, nb):
 
 
 def notes_de_mesure(mid, bornes=None):
-    """Notes de l'original rangées par mesure (une attaque en avance de 1/8 de temps compte pour la mesure suivante) :
-    {mesure: [[canal, note, vélocité, début, fin], …]} en ticks depuis la barre de la mesure (comme la page)."""
+    """Notes de l'original rangées par mesure (une attaque en avance de moins de 1/8 de temps compte pour la mesure
+    suivante) : {mesure: [[canal, note, vélocité, début, fin], …]} en ticks depuis la barre de la mesure (comme la page)."""
     bornes = bornes or bornes_mesures(mid)
-    avance, res = mid.ticks_per_beat // 8, {}
+    av, res = avance(mid.ticks_per_beat), {}
     for d, f, on, _ in notes(mid):
-        k = min(len(bornes) - 2, _mesure_de(bornes, d + avance)) + 1
+        k = min(len(bornes) - 2, _mesure_de(bornes, d + av)) + 1
         res.setdefault(k, []).append([on.channel, on.note, on.velocity, d - bornes[k - 1], f - bornes[k - 1]])
     return res
 
@@ -238,7 +245,7 @@ def assemble(mid, segments):
     tpb = mid.ticks_per_beat
     bornes = bornes_mesures(mid)
     plages = normalise(segments, len(bornes) - 1)
-    avance, resonance = tpb // 8, tpb
+    av, resonance = avance(tpb), tpb
     sortie = mido.MidiFile(type=mid.type, ticks_per_beat=tpb)
     # piste qui porte chaque canal (pour y ranger les notes des mesures retouchées)
     porteur = {}
@@ -288,7 +295,7 @@ def assemble(mid, segments):
                     ev.append((t + dec, 1, m, None))
             if remplace is None:
                 choisies = [(d, f, on, off) for d, f, on, off in notes
-                            if (s == 0 or d >= s - avance) and (derniere or d < e - avance)]
+                            if (s == 0 or d >= s - av) and (derniere or d < e - av)]
             else:                                   # mesure retouchée : ses propres notes
                 choisies = [(s + d, s + f, mido.Message("note_on", channel=c, note=n, velocity=v),
                              mido.Message("note_off", channel=c, note=n, velocity=0))

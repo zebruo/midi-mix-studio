@@ -226,7 +226,7 @@ def analyse(chemin, reglages_de=None):
             noms_fichier.setdefault(ch, set()).add(nom_tr if len(canaux) == 1 else "")
     nom_fichier = lambda ch: next(iter(noms_fichier[ch])) if len(noms_fichier.get(ch, ())) == 1 else ""
     # canaux joués par plusieurs instruments : une ligne par instrument (ex. clarinette puis piano sur le canal 7)
-    partages, chg, av = montage.instruments_par_canal(mid), montage.programmes(mid), mid.ticks_per_beat // 8
+    partages, chg, av = montage.instruments_par_canal(mid), montage.programmes(mid), montage.avance(mid.ticks_per_beat)
     par_instrument = {}
     for d, _, on, _ in montage.notes(mid):
         if on.channel in partages:
@@ -309,7 +309,7 @@ def piste_seule(chemin, canal, son, prog=None):
     if prog is not None:
         evts.sort(key=lambda e: (e[0], e[1]))
         chg = sorted((t, m.program) for t, k, m in evts if k and m.type == "program_change")
-        av, ouvertes, garde = src.ticks_per_beat // 8, {}, []
+        av, ouvertes, garde = montage.avance(src.ticks_per_beat), {}, []
         for t, k, m in evts:
             if k and m.type == "note_on" and m.velocity > 0:
                 ok = montage.programme_a(chg, t, av) == prog

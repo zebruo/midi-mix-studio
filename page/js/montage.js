@@ -74,8 +74,9 @@ const MT = (() => {
     barres = Array.isArray(lu) && lu.length && lu.every(valide) ? lu : plage(1, n);
     sections = [0];
     for (let b = 1; b <= n; b++) { let k = 0; MORCEAU.tempos.forEach((x, i) => { if (x.mesure <= b - 1 + 1e-6) k = i; }); sections[b] = k; }
-    // notes de l'original par mesure, en ticks depuis la barre (une attaque un peu en avance compte pour la mesure suivante)
-    const B = MORCEAU.montage.bornes, avance = MORCEAU.montage.tpb >> 3;
+    // notes de l'original par mesure, en ticks depuis la barre (une attaque un peu en avance compte pour la mesure suivante ;
+    // l'avance, moins de 1/8 de temps, vient du serveur : montage.avance)
+    const B = MORCEAU.montage.bornes, avance = MORCEAU.montage.avance;
     parBarre = Array.from({length: n + 1}, () => []); etendue = {};
     for (const [c, p, v, d, f] of MORCEAU.montage.notes) {
       let lo = 1, hi = n;
@@ -87,10 +88,10 @@ const MT = (() => {
   }
   const notesDe = x => retouchee(x) ? x.notes : parBarre[x];
   // un canal joué par plusieurs instruments (ex. clarinette puis piano) a une ligne par instrument :
-  // une note appartient à l'instrument en place à son attaque (+ 1/8 de temps, pour les attaques en avance)
+  // une note appartient à l'instrument en place à son attaque (+ moins de 1/8 de temps, pour les attaques en avance)
   function progDe(canal, tick) {
     const chg = MORCEAU.montage.programmes[String(canal)]; if (!chg) return null;
-    let p = 0; for (const [t, q] of chg) { if (t > tick + (MORCEAU.montage.tpb >> 3)) break; p = q; }
+    let p = 0; for (const [t, q] of chg) { if (t > tick + MORCEAU.montage.avance) break; p = q; }
     return p;
   }
   const cleNote = (canal, tickSource) => { const q = progDe(canal, tickSource); return q == null ? String(canal) : `${canal}:${q}`; };
@@ -307,7 +308,7 @@ const MT = (() => {
   };
   // les notes modifiées de la vue sont réécrites dans les mesures du montage
   function valideNotes() {
-    const avance = MORCEAU.montage.tpb >> 3, nouv = vue.cols.map(() => []);
+    const avance = MORCEAU.montage.avance, nouv = vue.cols.map(() => []);
     for (const n of vue.notes) {
       let k = 0; vue.cols.forEach((c, i) => { if (c.off <= n.d + avance) k = i; });
       const c = vue.cols[k];
@@ -394,7 +395,8 @@ const MT = (() => {
       for (const n of l.ns) {
         const d = n._d ?? n.d, f = n._f ?? n.f, p = n._p ?? n.p;
         const fin = gesteD ? Math.min(f, vue.total) : finAffichee(n);
-        const x = GOUT + d * sx, w = Math.max(3, (fin - d) * sx - 1), yy = y + (l.hi - p) * l.hn;
+        const d0 = Math.max(d, 0);                  // une attaque en avance est dessinée à partir de la barre, pas dans la marge
+        const x = GOUT + d0 * sx, w = Math.max(3, (fin - d0) * sx - 1), yy = y + (l.hi - p) * l.hn;
         const choisie = vue.choix.has(n);
         g.fillStyle = `rgba(${rvb},${(.35 + n.vel / 127 * .65).toFixed(2)})`;
         g.fillRect(x, yy, w, Math.max(2, l.hn - 1));
@@ -626,11 +628,20 @@ const MT = (() => {
     const r = c.getBoundingClientRect(), w = echelle(r.width), x = (e.clientX - r.left - GOUT) / w;
     return {dedans: e.clientX - r.left >= GOUT, i: Math.min(n, Math.max(1, Math.floor(x) + 1)), k: Math.max(0, Math.min(n, Math.round(x)))};
   }
+  // bord de la sélection sous la souris (poignées, ± 6 px) : "de" (gauche), "a" (droite) ou null
+  function bordSel(e) {
+    if (!sel || focus === "src") return null;
+    const r = cM.getBoundingClientRect(), w = echelle(r.width), x = e.clientX - r.left;
+    const x0 = GOUT + (sel.de - 1) * w, x1 = GOUT + sel.a * w, d0 = Math.abs(x - x0), d1 = Math.abs(x - x1);
+    return d1 <= 6 && d1 <= d0 ? "a" : d0 <= 6 ? "de" : null;
+  }
   cM.addEventListener("pointerdown", e => {
     if (!MORCEAU) return;
-    const p = ou(cM, e, barres.length); if (!p.dedans) return;
+    const bord = !e.shiftKey && bordSel(e);
+    const p = ou(cM, e, barres.length); if (!p.dedans && !bord) return;
     cM.setPointerCapture(e.pointerId); focus = "mt";
-    if (sel && !e.shiftKey && p.i >= sel.de && p.i <= sel.a) geste = {type: "deplace", x0: e.clientX, k: null, i: p.i};
+    if (bord) geste = {type: "bord", cote: bord};
+    else if (sel && !e.shiftKey && p.i >= sel.de && p.i <= sel.a) geste = {type: "deplace", x0: e.clientX, k: null, i: p.i};
     else {
       const ancre = e.shiftKey && sel ? (p.i < sel.de ? sel.a : sel.de) : p.i;
       geste = {type: "choix", ancre}; sel = {de: Math.min(ancre, p.i), a: Math.max(ancre, p.i)};
