@@ -56,7 +56,7 @@ The interface is in French; the tab and button names below are given as they app
    - [GeneralUser GS](https://www.schristiancollins.com/generaluser.php) (`GeneralUser-GS.sf2`)
    - a folder of SFZ banks containing [Salamander Grand Piano](https://github.com/sfzinstruments/SalamanderGrandPiano) (`SalamanderGrandPiano-master`) and [Virtual Playing Orchestra 3](http://virtualplaying.com/virtual-playing-orchestra/) (`VPO/Virtual-Playing-Orchestra3`)
 4. **Configuration**: copy `config.exemple.json` to `config.json`, then fill in:
-   - `racines`: the folders in which to look for `.mid` pieces
+   - `racines`: the folders in which to look for `.mid` pieces (they can also be added or removed later with the folder icon next to the list of pieces)
    - `fluidsynth`, `generaluser`, `sfizz_render`, `dossier_sfz`, `ffmpeg`: the paths of the tools and banks
 
    `config.json` is specific to each PC and is not versioned.

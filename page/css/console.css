@@ -50,7 +50,19 @@ input.pan{width:84px}
 .transport{display:flex;flex-wrap:wrap;gap:10px;align-items:center;grid-column:1/-1}
 .transport button.play{background:var(--amber);color:#1b1d21;border-color:var(--amber);font-weight:600}
 .transport button.exp{background:transparent}
+body:not(.occupe) .transport button.exp:not(:disabled):hover{background:var(--rail)}
 .transport .droite{margin-left:auto;display:flex;gap:10px;align-items:center}
-.status{grid-column:1/-1;font:12.5px var(--mono);color:var(--muted);min-height:1.4em}
+.status{width:100%;font:12.5px var(--mono);color:var(--muted);min-height:1.4em;overflow-wrap:anywhere}   /* tous les messages d'action : en haut, hauteur réservée */
 .status.ok{color:var(--ok)} .status.err{color:var(--led)}
 @media (max-width:600px){.file{margin-left:0}.brand{font-size:22px}#fichier{min-width:0;width:100%}}
+
+/* panneau « Dossiers de morceaux » (dossiers.js) */
+.dossiers{position:fixed;z-index:20;width:440px;max-width:calc(100vw - 16px);padding:8px 0;background:var(--deck);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px #000a}
+.dossiers[hidden]{display:none}
+.dossiers-titre{padding:2px 12px 6px;font:600 11px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.dossiers-ligne{display:flex;align-items:center;gap:8px;padding:2px 8px 2px 12px;font-size:12.5px}
+.dossiers-ligne:hover{background:var(--rail)}
+.dossiers-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dossiers-retirer{flex-shrink:0;padding:1px 7px;background:none;border-color:transparent;color:var(--muted)}
+.dossiers-retirer:hover{color:var(--text);border-color:var(--line)}
+.dossiers-ajouter{display:block;margin:8px 12px 2px}

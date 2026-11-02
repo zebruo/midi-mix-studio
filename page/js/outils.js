@@ -48,7 +48,7 @@ const calcul = (() => {
       minuterie = setInterval(() => ecrit("actif", Math.floor(secondes()) + " s"), 250);
     }
     try { return await promesse; }
-    catch (e) { echec = true; throw e; }            // le message d'erreur reste affiché en bas de la page
+    catch (e) { echec = true; throw e; }            // le message d'erreur reste affiché en haut de la page
     finally {
       if (--n === 0) {
         clearInterval(minuterie);
@@ -93,3 +93,8 @@ const saisieEnCours = (curseurs = false) => {
   const el = document.activeElement;
   return !!el && /INPUT|SELECT|TEXTAREA/.test(el.tagName) && (curseurs || el.type !== "range");
 };
+// Un bouton cliqué à la souris ne garde pas le focus : sinon la première touche du transport (espace, flèches) fait
+// apparaître son cadre ambre de navigation au clavier (detail = 0 : activé au clavier, le focus reste)
+document.addEventListener("click", e => {
+  if (e.detail > 0 && document.activeElement instanceof HTMLButtonElement && document.activeElement.contains(e.target)) document.activeElement.blur();
+});

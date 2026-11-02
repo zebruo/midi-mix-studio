@@ -21,6 +21,10 @@ button.ico svg{display:block;width:16px;height:16px;fill:currentColor}
 button:disabled{opacity:.45;cursor:default}
 /* pendant un calcul (occupe(), outils.js) : boutons et liste des morceaux grisés, curseur d'attente dessus seulement */
 body.occupe button:not(.touche),body.occupe #fichier{opacity:.45;cursor:progress}
+/* survol léger : un éclaircissement, qui garde les couleurs d'état (M, S, ambre) ; rien sur un bouton inactif ni pendant un calcul.
+   Touches du transport : transport.css ; boutons sans fond : console.css, montage.css */
+button{transition:filter .1s,background-color .1s,color .1s}
+body:not(.occupe) button:not(.touche,:disabled):hover{filter:brightness(1.18)}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 input[type=range]{width:120px;accent-color:var(--amber)}
 .val{font:12px var(--mono);color:var(--muted);width:42px;text-align:right;font-variant-numeric:tabular-nums}

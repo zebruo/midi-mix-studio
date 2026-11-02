@@ -20,6 +20,7 @@
     <div class="file">
       <label class="k" for="fichier">Morceau</label>
       <select id="fichier" title="Choisir un morceau l'ouvre aussitôt"><option>Chargement de la liste…</option></select>
+      <button type="button" id="dossiers" class="ico" aria-label="Dossiers de morceaux" aria-expanded="false" title="Dossiers de morceaux"><svg viewBox="0 0 16 16" data-icone="dossier"></svg></button>
       <span class="meta" id="meta"></span>
     </div>
     <div class="doc" id="doc" hidden>
@@ -30,6 +31,7 @@
       <button type="button" id="doc-version" class="ico" aria-label="Enregistrer une copie" title="Enregistrer une copie (_v2, _v3…)"><svg viewBox="0 0 16 16" data-icone="copie"></svg></button>
       <button type="button" id="doc-script" class="ico" aria-label="Mettre à jour le script" hidden><svg viewBox="0 0 16 16" data-icone="script"></svg></button>
     </div>
+    <div class="status" id="status" role="status"></div>
   </header>
 
   <nav class="onglets" role="tablist" aria-label="Mode">
@@ -248,12 +250,12 @@
         <button class="exp" id="vider" type="button">Vider le cache</button>
       </div>
     </div>
-    <div class="status" id="status" role="status"></div>
   </section>
 </div>
 
 <script src="js/outils.js"></script>
 <script src="js/sons.js"></script>
+<script src="js/dossiers.js"></script>
 <script src="js/pistes.js"></script>
 <script src="js/transport.js"></script>
 <script src="js/montage.js"></script>

@@ -206,10 +206,10 @@ $("#doc-script").addEventListener("click", async () => {
     if (!(await appliqueEnAttente())) return;
     statut("Mise à jour du script…");
     const r = await calcul(api("/api/script/mettre-a-jour", {doc: DOC.id, reglages: reglages()}));
-    statut(`Script mis à jour : ${r.script} (${r.retouches} retouche(s) et les réglages de mixage)`
-      + (r.sauvegarde ? `, l'ancien gardé dans sauvegardes\\${r.sauvegarde}` : "") + " — "
-      + (r.ecarts ? `attention : relancé, il diffère encore du morceau en ${r.ecarts} point(s).` : "vérifié : relancé, il redonne exactement ce morceau."),
-      r.ecarts ? "err" : "ok");
+    if (r.ecarts) statut(`Script non modifié : ${r.script}, relancé avec ces retouches, différerait du morceau en ${r.ecarts} point(s).`, "err");
+    else statut(`Script mis à jour : ${r.script} (${r.retouches} retouche(s) et les réglages de mixage)`
+      + (r.sauvegarde ? `, l'ancien gardé dans sauvegardes\\${r.sauvegarde}` : "")
+      + " — vérifié : relancé, il redonne exactement ce morceau.", "ok");
   } catch (e) { statut(e.message, "err"); }
 });
 // Annuler / Rétablir, seuls boutons de ce genre de la page : d'abord ce qui se fait dans l'onglet ouvert, un pas
@@ -300,8 +300,12 @@ async function rendu(cible) {
 async function cache() { try { const c = await api("/api/cache"); $("#vider").textContent = `Vider le cache (${c.mo} Mo)`; } catch (e) {} }
 async function listeFichiers() {
   const fichiers = await api("/api/fichiers"), sel = $("#fichier"), avant = sel.value;
-  sel.innerHTML = fichiers.map(f => `<option value="${f.chemin.replace(/"/g, "&quot;")}">${f.affiche}</option>`).join("");
+  sel.replaceChildren(...fichiers.map(f => new Option(f.affiche, f.chemin)));
   if (fichiers.some(f => f.chemin === avant)) sel.value = avant;
+  else if (DOC && avant) {                       // son dossier vient d'être retiré de la liste : le morceau reste ouvert
+    sel.add(new Option(`${avant.split(/[\\/]/).pop()} (dossier retiré)`, avant));
+    sel.value = avant;
+  }
   return fichiers;
 }
 

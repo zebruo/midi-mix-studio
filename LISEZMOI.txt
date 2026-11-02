@@ -40,6 +40,8 @@ Onglet « Mixage »
 -----------------
 1. Choisir un morceau (.mid) dans la liste : il s'ouvre aussitôt.
    La console reprend automatiquement le dernier morceau utilisé.
+   L'icône de dossier, à côté de la liste, montre les dossiers où chercher les morceaux :
+   « + Ajouter un dossier… » en ajoute un, × le retire de la liste (rien n'est supprimé).
 2. Pour chaque piste : son, volume (70 = niveau d'origine), position gauche/droite,
    M = muet, S = solo. Un clic sur le son ouvre une liste avec recherche, qui contient les
    sons des deux moteurs (GU = FluidSynth + GeneralUser, intimiste ; sfizz = lyrique) :
@@ -57,7 +59,7 @@ Onglet « Mixage »
    Le bloc « Calcul » de la barre de transport, toujours visible, dit où en est le son :
    « prêt » ; pendant un calcul (écoute, mise à jour, export…), un anneau qui tourne et le
    temps écoulé ; ensuite « ✓ à jour » et la durée du calcul pendant 5 s, puis « prêt » ;
-   « échec » si le calcul n'a pas abouti (le message est en bas de la page).
+   « échec » si le calcul n'a pas abouti (le message est en haut de la page).
    Clavier du transport : Espace = lecture / pause, ← / → = mesure précédente / suivante
    (Maj + ← / → : un temps ; Ctrl + ← / → : repère précédent / suivant, ex. « Strophe 2 »,
    « Coda », ou le changement de tempo voisin si le fichier n'a pas de repères),
@@ -70,7 +72,7 @@ Onglet « Mixage »
    même endroit. Une piste n'est recalculée que si son contenu ou son son change.
 4. « Exporter MP3 / WAV » : le document tel qu'il est, à côté du morceau (ou de sa copie)
    (ex. musique_2008_mix.mp3, toujours ce même fichier : l'export précédent est d'abord gardé
-   dans le dossier « sauvegardes » à côté de lui).
+   dans le dossier « sauvegardes » à côté de lui ; pour un WAV, seules les 3 dernières sont gardées).
    Volume normalisé exactement à la valeur « Volume général » (-16 LUFS = films).
    Fin du morceau : 4 s de résonance après la dernière note ; « Fondu de fin » (0 à 15 s)
    fait baisser le volume régulièrement jusqu'au silence.
@@ -143,7 +145,8 @@ disquettes, visible seulement pour un tel morceau) reporte les retouches dans le
 même recette + un bloc RETOUCHES (une ligne commentée par retouche : note ajoutée, supprimée,
 durée, vélocité…) + les réglages de mixage. L'ancien script est d'abord gardé dans le dossier
 « sauvegardes » à côté de lui (comme un morceau remplacé par « Enregistrer »). Le mixeur vérifie
-que le script, relancé, redonne exactement le morceau. On peut ensuite changer la recette (un
+que le script, relancé, redonne exactement le morceau ; sinon, le script d'origine est remis tel
+quel et la page l'indique. On peut ensuite changer la recette (un
 instrument, un tempo…) : les retouches sont réappliquées par-dessus (une retouche dont la note a
 disparu de la recette est signalée et ignorée).
 Convention d'un tel script : une ligne PRODUIT = "début du nom des fichiers produits", les
@@ -169,9 +172,9 @@ midi_texte.py  .mid ⇄ texte commenté (onglet Événements) ; marche aussi seu
 page\          la console : favicon.ico et icone.png (icône de l'application, aussi celle du
                raccourci du bureau), icones\ (les icônes des boutons, une par fichier .svg :
                les modifier là, la page les reprend au chargement), index.html, css\ (common, console, sons, transport, montage,
-               texte), js\ (outils, sons, pistes, transport, montage, texte, app)
+               texte), js\ (outils, sons, dossiers, pistes, transport, montage, texte, app)
 config.json    chemins des moteurs et des banques, dossiers où chercher les morceaux
-               (« racines »), taille maximale du cache, volumes de base des banques sfizz,
+               (« racines », modifiables aussi depuis la console), taille maximale du cache, volumes de base des banques sfizz,
                nombre de moteurs (sfizz, FluidSynth) lancés en même temps, 4 par défaut : à
                baisser (2) sur un PC qui a peu de mémoire ; propre à ce PC, non versionné
 config.exemple.json  modèle de config.json (à copier en config.json et adapter les chemins)

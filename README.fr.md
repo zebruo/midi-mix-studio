@@ -54,7 +54,7 @@ L'application tourne sur le PC (`http://localhost:8765`, accessible seulement de
    - [GeneralUser GS](https://www.schristiancollins.com/generaluser.php) (`GeneralUser-GS.sf2`)
    - un dossier de banques SFZ contenant [Salamander Grand Piano](https://github.com/sfzinstruments/SalamanderGrandPiano) (`SalamanderGrandPiano-master`) et [Virtual Playing Orchestra 3](http://virtualplaying.com/virtual-playing-orchestra/) (`VPO/Virtual-Playing-Orchestra3`)
 4. **Configuration** : copier `config.exemple.json` en `config.json`, puis y indiquer :
-   - `racines` : les dossiers où chercher les morceaux `.mid`
+   - `racines` : les dossiers où chercher les morceaux `.mid` (on peut aussi en ajouter ou en retirer ensuite avec l'icône de dossier, à côté de la liste des morceaux)
    - `fluidsynth`, `generaluser`, `sfizz_render`, `dossier_sfz`, `ffmpeg` : les chemins des outils et des banques
 
    `config.json` est propre à chaque PC et n'est pas versionné.

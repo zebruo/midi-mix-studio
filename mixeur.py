@@ -32,7 +32,8 @@ import travail  # noqa: E402      (documents de travail : versions, enregistreme
 import retouches  # noqa: E402    (retouches d'un morceau fabriqué par un script, reportées dans le script)
 
 ICI = os.path.dirname(os.path.abspath(__file__))
-CONFIG = json.load(open(os.path.join(ICI, "config.json"), encoding="utf-8"))
+CONFIG_CHEMIN = os.path.join(ICI, "config.json")
+CONFIG = json.load(open(CONFIG_CHEMIN, encoding="utf-8"))
 
 
 def lit_version():
@@ -137,17 +138,20 @@ def nom_sfz(rel):
     return f[:-4].replace("-", " ")
 
 
-def dans_racines(chemin, travail_compris=True):
-    """Fichier autorisé : dans un dossier « racines » de config.json, ou un document de travail du mixeur."""
-    p = os.path.abspath(chemin)
-    dossiers = list(CONFIG["racines"]) + ([TRAVAUX.dossier] if travail_compris else [])
+def est_dans(chemin, dossier):
+    """`chemin` est `dossier` lui-même ou se trouve dedans."""
+    p, r = os.path.normcase(os.path.abspath(chemin)), os.path.normcase(os.path.abspath(dossier))
+    try:
+        return os.path.commonpath([p, r]) == r
+    except ValueError:                              # autre lecteur (D: contre C:…) : forcément dehors
+        return False
 
-    def dedans(r):
-        try:
-            return os.path.commonpath([p, os.path.abspath(r)]) == os.path.abspath(r)
-        except ValueError:                          # autre lecteur (D: contre C:…) : forcément dehors
-            return False
-    return any(dedans(r) for r in dossiers)
+
+def dans_racines(chemin, travail_compris=True):
+    """Fichier autorisé : dans un dossier « racines » de config.json, ou un document de travail du mixeur.
+    Un dossier retiré de la liste reste autorisé jusqu'à l'arrêt du mixeur : le morceau ouvert s'enregistre encore."""
+    dossiers = list(CONFIG["racines"]) + RACINES_RETIREES + ([TRAVAUX.dossier] if travail_compris else [])
+    return any(est_dans(chemin, r) for r in dossiers)
 
 
 def verifie_chemin(chemin, travail_compris=True):
@@ -156,17 +160,104 @@ def verifie_chemin(chemin, travail_compris=True):
         raise ValueError("Fichier introuvable ou hors des dossiers autorisés.")
 
 
+def morceaux_du_dossier(r):
+    for racine, dossiers, fichiers in os.walk(r):
+        # ni dossiers cachés, ni les sauvegardes faites par « Enregistrer » (travail.DOSSIER_SAUVEGARDES)
+        dossiers[:] = [d for d in dossiers if not d.startswith(".") and d.lower() != travail.DOSSIER_SAUVEGARDES]
+        for f in fichiers:
+            if f.lower().endswith((".mid", ".midi")):
+                yield os.path.join(racine, f)
+
+
 def liste_fichiers():
-    res = []
-    for r in CONFIG["racines"]:
-        for racine, dossiers, fichiers in os.walk(r):
-            # ni dossiers cachés, ni les sauvegardes faites par « Enregistrer » (travail.DOSSIER_SAUVEGARDES)
-            dossiers[:] = [d for d in dossiers if not d.startswith(".") and d.lower() != travail.DOSSIER_SAUVEGARDES]
-            for f in fichiers:
-                if f.lower().endswith((".mid", ".midi")):
-                    p = os.path.join(racine, f)
-                    res.append({"chemin": p, "affiche": os.path.relpath(p, r)})
+    res = [{"chemin": p, "affiche": os.path.relpath(p, r)} for r in list(CONFIG["racines"]) for p in morceaux_du_dossier(r)]
     return sorted(res, key=lambda x: x["affiche"].lower())
+
+
+# ───────────────────────────── dossiers de morceaux (« racines » de config.json) ─────────────────────────────
+RACINES_RETIREES = []                # retirés depuis le lancement (voir dans_racines)
+VERROU_RACINES = threading.Lock()
+VERROU_FENETRE = threading.Lock()    # une seule fenêtre de choix de dossier à la fois
+
+
+def dossiers_morceaux():
+    """Pour le panneau de la page : chaque dossier, affiché sans le début commun du profil utilisateur."""
+    profil = os.path.expanduser("~")
+    return [{"chemin": r, "affiche": os.path.relpath(r, profil) if est_dans(r, profil) else r} for r in CONFIG["racines"]]
+
+
+def racines_du_fichier():
+    with open(CONFIG_CHEMIN, encoding="utf-8") as f:
+        return json.load(f)["racines"]
+
+
+def enregistre_racines(racines):
+    """Réécrit config.json (relu d'abord : il peut avoir été modifié à la main) sans toucher aux autres réglages."""
+    with open(CONFIG_CHEMIN, encoding="utf-8") as f:
+        config = json.load(f)
+    config["racines"] = racines
+    with open(CONFIG_CHEMIN + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(CONFIG_CHEMIN + ".tmp", CONFIG_CHEMIN)
+    CONFIG["racines"] = racines
+
+
+def choisit_dossier(depart):
+    """La fenêtre Windows de choix de dossier, au premier plan → chemin choisi, ou "" si annulée. Dans un processus à
+    part : tkinter ne s'ouvre pas dans un fil du serveur, et python.exe (pas pythonw) permet de lire sa réponse."""
+    code = ("import sys, tkinter\nfrom tkinter import filedialog\n"
+            "r = tkinter.Tk(); r.withdraw(); r.attributes('-topmost', True); r.update()\n"
+            "d = filedialog.askdirectory(parent=r, title='Ajouter un dossier de morceaux', initialdir=sys.argv[1], mustexist=True)\n"
+            "r.destroy(); sys.stdout.buffer.write((d or '').encode('utf-8'))\n")
+    python = os.path.join(os.path.dirname(sys.executable), "python.exe")
+    try:
+        res = subprocess.run([python if os.path.exists(python) else sys.executable, "-I", "-c", code, depart],
+                             capture_output=True, timeout=600, creationflags=SANS_FENETRE)
+    except subprocess.TimeoutExpired:              # fenêtre oubliée : comme une annulation
+        return ""
+    if res.returncode:
+        raise ValueError("La fenêtre de choix de dossier n'a pas pu s'ouvrir.")
+    return res.stdout.decode("utf-8", "replace").strip()
+
+
+def inscrit_dossier(chemin):
+    """Ajoute un dossier à la liste. Un dossier qui en contient d'autres de la liste les remplace (pas de doublons)."""
+    p = os.path.abspath(chemin)
+    if os.path.dirname(p) == p:
+        raise ValueError("Choisissez un dossier plus précis qu'un disque entier.")
+    with VERROU_RACINES:
+        racines = racines_du_fichier()
+        if any(est_dans(p, r) for r in racines):
+            return {"etat": "deja"}
+        enregistre_racines([r for r in racines if not est_dans(r, p)] + [p])
+    return {"etat": "ajoute", "nom": os.path.basename(p), "morceaux": sum(1 for _ in morceaux_du_dossier(p))}
+
+
+def ajoute_dossier():
+    if not VERROU_FENETRE.acquire(blocking=False):
+        raise ValueError("La fenêtre de choix de dossier est déjà ouverte.")
+    try:
+        racines = CONFIG["racines"]
+        chemin = choisit_dossier(racines[-1] if racines else os.path.expanduser("~"))
+    finally:
+        VERROU_FENETRE.release()
+    return inscrit_dossier(chemin) if chemin else {"etat": "annule"}
+
+
+def retire_dossier(chemin):
+    """Retire un dossier de la liste : aucun fichier n'est touché, et il en reste toujours au moins un."""
+    p = os.path.normcase(os.path.abspath(chemin))
+    with VERROU_RACINES:
+        racines = racines_du_fichier()
+        restants = [r for r in racines if os.path.normcase(os.path.abspath(r)) != p]
+        if len(restants) == len(racines):
+            raise ValueError("Ce dossier n'est pas dans la liste.")
+        if not restants:
+            raise ValueError("Il faut garder au moins un dossier.")
+        enregistre_racines(restants)
+        RACINES_RETIREES.append(os.path.abspath(chemin))
+    return {"etat": "retire", "nom": os.path.basename(os.path.abspath(chemin))}
 
 
 def carte_tempos(mid):
@@ -805,9 +896,10 @@ def mixe(req):
     if cible != "ecoute":
         # un document de travail s'exporte à côté du morceau (ou de sa copie enregistrée), pas dans le cache ;
         # toujours le même fichier (morceau_mix.mp3) : l'export précédent est d'abord gardé dans « sauvegardes »
+        # (WAV : 3 sauvegardes seulement, ces fichiers sont lourds)
         nom = req.get("base") if req.get("base") and dans_racines(req["base"], travail_compris=False) else chemin
         sortie = os.path.splitext(nom)[0] + "_mix" + (".mp3" if cible == "mp3" else ".wav")
-        TRAVAUX.sauvegarde(sortie)
+        TRAVAUX.sauvegarde(sortie, **({} if cible == "mp3" else {"garder": 3}))
     ecrit_mixage(req, e, ch, gain, lis_mid(chemin).length, sortie)
     return {"fichier": sortie, "url": "/cache/ecoute/" + os.path.basename(sortie) if cible == "ecoute" else None,
             "pistes": len(actives), "recalculees": recalc, "secondes": round(time.time() - debut, 1),
@@ -1040,7 +1132,8 @@ def lance_script(script, sortie, sans_retouches):
 def met_a_jour_script(req):
     """Reporte dans le script lui-même (même recette) le bloc RETOUCHES / REGLAGES qui reproduit le document en
     cours (avec ses retouches) ; l'ancien script est d'abord gardé dans le dossier « sauvegardes » à côté de lui.
-    Puis vérifie que le script redonne exactement le morceau."""
+    Puis vérifie que le script redonne exactement le morceau : sinon (il plante ou il diffère), le script d'origine
+    est remis à l'identique et sa sauvegarde retirée — un script n'est remplacé que s'il a été vérifié."""
     d = TRAVAUX.charge(req.get("doc"))
     ouvert, actuel = d["copie"] or d["original"], TRAVAUX.chemin(d)
     script = script_du_morceau(ouvert, lis_mid(actuel))
@@ -1057,7 +1150,17 @@ def met_a_jour_script(req):
         morceau = mido.MidiFile(actuel)
         liste = retouches.compare(recette, morceau)
         cible = script                                 # le script lui-même, après une sauvegarde
+        with open(script, "rb") as f:
+            ancien = f.read()
+        dates = os.stat(script)
         sauvegarde = TRAVAUX.sauvegarde(script)
+
+        def remet_le_script():
+            with open(script, "wb") as f:
+                f.write(ancien)
+            os.utime(script, (dates.st_atime, dates.st_mtime))
+            if sauvegarde:
+                os.remove(sauvegarde)
         import pprint
         nouveau_bloc = ("# ───── RETOUCHES (écrit par le mixeur — garder ces deux lignes de repère) ─────\n"
                         f"# {len(liste)} retouche(s) faite(s) dans le mixeur sur « {os.path.basename(ouvert)} » le "
@@ -1065,9 +1168,17 @@ def met_a_jour_script(req):
                         + retouches.en_python(liste, recette) + "\n"
                         + "REGLAGES = " + pprint.pformat(req.get("reglages"), width=110, sort_dicts=False) + "\n"
                         + "# ───── fin des retouches ─────")
-        with open(cible, "w", encoding="utf-8", newline="\n") as f:
-            f.write(bloc.sub(lambda _: nouveau_bloc, source, count=1))
-        verif = retouches.compare(lance_script(cible, os.path.join(tmp, "verif.mid"), sans_retouches=False), morceau)
+        try:
+            with open(cible, "w", encoding="utf-8", newline="\n") as f:
+                f.write(bloc.sub(lambda _: nouveau_bloc, source, count=1))
+            verif = retouches.compare(lance_script(cible, os.path.join(tmp, "verif.mid"), sans_retouches=False), morceau)
+        except Exception as e:
+            remet_le_script()
+            cause = str(e) if isinstance(e, ValueError) else "Le script mis à jour n'a pas pu être vérifié."
+            raise ValueError(f"{cause.rstrip('.')} — le script n'a pas été modifié.") from e
+        if verif:
+            remet_le_script()
+            sauvegarde = None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return {"script": os.path.basename(cible), "retouches": len(liste), "ecarts": len(verif),
@@ -1199,6 +1310,8 @@ class Console(http.server.BaseHTTPRequestHandler):
             return self.envoie(200, {"version": VERSION, "fichier": lit_version()})
         if url == "/api/fichiers":
             return self.envoie(200, liste_fichiers())
+        if url == "/api/dossiers":
+            return self.envoie(200, dossiers_morceaux())
         if url == "/api/sons":
             return self.envoie(200, SONS)
         if url == "/api/cache":
@@ -1229,6 +1342,10 @@ class Console(http.server.BaseHTTPRequestHandler):
             if url == "/api/niveaux":
                 with VERROU:
                     return self.envoie(200, niveaux(req))
+            if url == "/api/dossiers/ajouter":             # sans le VERROU : la fenêtre attend l'utilisateur
+                return self.envoie(200, ajoute_dossier())
+            if url == "/api/dossiers/retirer":
+                return self.envoie(200, retire_dossier(req["chemin"]))
             if url == "/api/texte/lire":
                 verifie_chemin(req["fichier"])
                 return self.envoie(200, {"texte": midi_texte.texte_de(mido.MidiFile(req["fichier"]), os.path.basename(req["fichier"]))})
