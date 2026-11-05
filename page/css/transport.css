@@ -21,6 +21,21 @@
 .lcd{background:#0a0b0c;border:1px solid #000;border-radius:3px;box-shadow:inset 0 2px 6px #000,0 1px 0 #555a64;
   padding:5px 10px 4px;font:700 22px/1 var(--mono);color:#ffae3c;text-shadow:0 0 6px #ff9a1a88;letter-spacing:.04em;
   font-variant-numeric:tabular-nums;white-space:pre;min-height:34px;display:flex;align-items:center}
+/* position : une grille commune, chaque légende dans la colonne de son nombre (marge, mesure, point, temps, point, tick, marge) */
+.bloc.position{display:grid;grid-template-columns:10px auto auto auto auto auto 10px;column-gap:0;justify-items:center}
+.bloc.position .etiq:nth-child(1){grid-column:2}
+.bloc.position .etiq:nth-child(2){grid-column:4}
+.bloc.position .etiq:nth-child(3){grid-column:6}
+.bloc.position .lcd{grid-column:1/-1;justify-self:stretch;display:grid;grid-template-columns:subgrid;padding-inline:0;justify-items:center}
+.bloc.position .lcd span:first-child{grid-column:2}
+.bloc.position .lcd span:nth-child(2),.bloc.position .lcd span:nth-child(4){padding-inline:6px}
+/* tempo et chiffrage : même principe (marge, tempo, chiffrage, marge) */
+.bloc.tempo{display:grid;grid-template-columns:10px auto auto 10px;justify-items:center}
+.bloc.tempo .etiq:nth-child(1){grid-column:2}
+.bloc.tempo .etiq:nth-child(2){grid-column:3}
+.bloc.tempo .lcd{grid-column:1/-1;justify-self:stretch;display:grid;grid-template-columns:subgrid;padding-inline:0;justify-items:center}
+.bloc.tempo .lcd span:first-child{grid-column:2}
+.bloc.tempo .lcd>span{padding-inline:6px}
 .lcd.vert{color:#7dff9a;text-shadow:0 0 6px #3fe06a77}
 .lcd.petit{font-size:15px}
 .lcd small{font-size:11px;color:#b9772a;margin-left:6px;text-shadow:none}

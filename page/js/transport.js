@@ -118,9 +118,12 @@ const TR = (() => {
     const t = ici();
     if (boucle && R > L && !a.paused && t >= R) a.currentTime = L;
     const p = pos(t);
-    $("#lcd-pos").textContent = `${String(p.m).padStart(3, " ")} . ${p.tps} . ${String(p.tick).padStart(3, "0")}`;
+    $("#pos-mesure").textContent = String(p.m).padStart(3, " ");
+    $("#pos-temps").textContent = p.tps;
+    $("#pos-tick").textContent = String(p.tick).padStart(3, "0");
     $("#lcd-temps").textContent = enCalcul && !a.src ? "calcul…" : fmtTemps(t);
-    $("#lcd-tempo").innerHTML = `${p.s.bpm.toFixed(1)}<small>bpm</small>  ${p.s.num}/${p.s.den}`;
+    $("#tempo-valeur").innerHTML = `${p.s.bpm.toFixed(1)}<small>bpm</small>`;
+    $("#tempo-mesure").textContent = `${p.s.num}/${p.s.den}`;
     vu(); dessineLigne();
     requestAnimationFrame(tic);
   }

@@ -87,7 +87,7 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
   mesures à copier. Bande « Montage » : glisser pour sélectionner (Maj+clic pour étendre),
   tirer une des poignées ambre de la sélection pour l'élargir ou la réduire d'un côté,
   glisser une sélection pour la déplacer, double-clic pour s'y placer à l'écoute.
-- Couper (Ctrl+X), Copier (Ctrl+C), Coller avant (Ctrl+V) / après (Ctrl+Maj+V),
+- Icônes en haut à droite : Couper (Ctrl+X), Copier (Ctrl+C), Coller avant (Ctrl+V) / après (Ctrl+Maj+V),
   Dupliquer (Ctrl+D), Supprimer (Suppr), Garder la sélection ; « Abandonner le montage »
   revient au document tel qu'il était en arrivant dans l'onglet (↶ Annuler le rétablit).
   Annuler / Rétablir : boutons du haut de la page (Ctrl+Z / Ctrl+Y).
@@ -99,7 +99,7 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
   la note (Do3 = do du milieu), vélocité, position, durée. Sur des mesures du MONTAGE, les
   notes se modifient (cette copie de la mesure seulement, marquée ✎) : clic = choisir,
   glisser = déplacer (Maj + glisser : dans le temps seulement, la note garde sa hauteur),
-  bord droit = durée (le curseur devient ↔), double-clic = ajouter, Suppr = supprimer,
+  bord droit = fin, bord gauche = début (le curseur devient ↔), double-clic = ajouter, Suppr = supprimer,
   ↑/↓ = demi-ton, Maj+↑/↓ = octave ; vélocité par le curseur ; « Notes d'origine ».
   Dupliquer : Ctrl + glisser une note (ou les notes choisies) en laisse une copie ; Ctrl+D
   copie les notes choisies juste après elles ; Ctrl+C / Ctrl+V : coller à la tête de lecture
@@ -108,6 +108,14 @@ Onglet « Montage » (mesures entières, toutes les pistes ensemble)
   (Dans le détail, Ctrl+C / V / D agissent sur les notes ; sur les bandes, sur les mesures.)
   En haut à droite du détail : « suivre la lecture » (tête de lecture + flèche ; pendant
   l'écoute, le détail passe aux mesures suivantes) et ✕ pour le fermer (ou Échap).
+  Zoom : ↔ − + en largeur (ou Ctrl + molette sur les notes), ↕ − + en hauteur ; un clic sur ↔ ou ↕
+  revient à ×1. Zoomé en largeur, le détail défile et les noms des pistes restent visibles. Les pistes sont fermées au départ :
+  un clic sur le nom d'une piste l'ouvre ou la ferme, et l'icône à côté du zoom le fait pour
+  toutes. Une piste fermée garde ses notes en miniature ; pour les modifier, il faut l'ouvrir.
+  Chaque piste ouverte a son clavier, à gauche des notes (sauf les percussions) : les touches à
+  la hauteur de la souris et des notes sélectionnées s'allument en ambre.
+  En rouge : deux notes de même hauteur qui se chevauchent (une seule peut sonner à la fois).
+  À régler soi-même : Fusionner les deux, ou raccourcir la première jusqu'au début de la seconde.
 - ▶ : aperçu rapide du montage ; chaque modification se met à jour toute seule. Après une
   retouche de notes, seules quelques secondes autour des mesures retouchées sont recalculées
   (3 à 5 s au lieu de toute la piste), puis fondues dans la piste déjà calculée. Pendant

@@ -9,6 +9,12 @@
 
 const MT = (() => {
   const cS = $("#mt-source"), cM = $("#mt-montage"), cG = $("#mt-grille"), cD = $("#mt-detail"), bulle = $("#mt-bulle");
+  const defile = cD.parentElement, zoneD = defile.parentElement;   // détail : la bande qui défile quand il est zoomé, et son cadre
+  const ZOOMS_H = [1, 1.5, 2, 3, 4, 6, 8], ZOOMS_V = [1, 1.5, 2, 3];
+  const CLAVIER = 36;                            // largeur du clavier du détail, à droite de la colonne des noms
+  const estNoire = q => [1, 3, 6, 8, 10].includes(q % 12);
+  let toucheSurvol = null;                       // {l, p} : touche du clavier à la hauteur de la souris
+  let zoomH = 1, zoomV = 1, ouvertes = new Set(), vueAffichee = null;   // ouvertes : lignes du détail dépliées (cleLigne) ; fermées par défaut
   const GOUT = 150;                              // colonne des libellés, à gauche des bandes
   const COUL = ["#c98a3a", "#4f9f95", "#8c6fc0", "#b65c5c", "#5f8fc4", "#9aa04a", "#c47aa0", "#6aa86a"];
   let barres = [], hist = [], futur = [], presse = null, sel = null, selSrc = null, focus = "mt";
@@ -66,7 +72,7 @@ const MT = (() => {
     try { enAttente() ? localStorage.setItem(cle(), JSON.stringify(barres)) : localStorage.removeItem(cle()); } catch (e) {}
   }
   function nouveauMorceau() {
-    hist = []; futur = []; presse = sel = selSrc = null; vue = null; version++;
+    hist = []; futur = []; presse = sel = selSrc = null; vue = null; version++; ouvertes = new Set();
     const n = nbSrc();
     const valide = x => Number.isInteger(x) ? x >= 1 && x <= n
       : x && Number.isInteger(x.b) && x.b >= 1 && x.b <= n && Array.isArray(x.notes);
@@ -144,9 +150,10 @@ const MT = (() => {
   }
   function annuler() { if (!hist.length) return majInfo("rien à annuler"); futur.push(barres); barres = hist.pop(); apres(sel && sel.a <= barres.length ? sel : null); }
   function retablir() { if (!futur.length) return majInfo("rien à rétablir"); hist.push(barres); barres = futur.pop(); apres(sel && sel.a <= barres.length ? sel : null); }
-  function reinit() {                            // « Abandonner le montage » (↶ Annuler le rétablit)
+  async function reinit() {                      // « Abandonner le montage » (↶ Annuler le rétablit)
     if (!enAttente()) return majInfo("aucun montage en cours à abandonner");
-    if (!confirm("Abandonner le montage pas encore appliqué et revenir au document tel qu'il était en arrivant dans l'onglet ?")) return;
+    if (!(await confirme({titre: "Abandonner le montage ?", texte: "Le document revient à ce qu'il était en arrivant dans l'onglet. ↶ Annuler le rétablit.",
+                          oui: "Abandonner", non: "Garder"}))) return;
     modifie(() => { barres = plage(1, nbSrc()); }, null);
   }
 
@@ -348,8 +355,12 @@ const MT = (() => {
       const ns = parLigne.get(cleLigne(p)), ps = ns.map(n => n.p);
       let lo = Math.max(0, Math.min(...ps) - 4), hi = Math.min(127, Math.max(...ps) + 4);
       while (hi - lo + 1 < 13) { if (lo > 0) lo--; if (hi - lo + 1 < 13 && hi < 127) hi++; }
-      const hn = Math.max(4, Math.min(8, 170 / (hi - lo + 1)));
-      return {p, ns, lo, hi, hn, h: (hi - lo + 1) * hn, bas: Math.min(...ps), haut: Math.max(...ps)};
+      const bas = Math.min(...ps), haut = Math.max(...ps);
+      // piste fermée : une ligne fine où ses notes restent visibles, mais qu'on ne modifie pas
+      if (!ouvertes.has(cleLigne(p))) return {p, ns, lo, hi, hn: 16 / (hi - lo + 1), h: 16, bas, haut, ferme: true};
+      const clavier = p.canal !== 9;              // canal 10 : chaque note est un instrument, pas une hauteur
+      const hn = Math.max(clavier ? 6 : 4, Math.min(8, 170 / (hi - lo + 1))) * zoomV;
+      return {p, ns, lo, hi, hn, h: (hi - lo + 1) * hn, bas, haut, clavier};
     });
     const vides = vue.edition ? PISTES.filter(p => !parLigne.has(cleLigne(p))).map(p => {
       const e = etendue[p.canal] || [60, 60], m = Math.round((e[0] + e[1]) / 2);
@@ -365,15 +376,20 @@ const MT = (() => {
     $("#mt-detail-fermer").hidden = !vue;
     $("#mt-aide-notes").hidden = !(vue && vue.edition);           // l'aide « i » : seulement quand on peut modifier
     $("#mt-suivre").hidden = !(vue && vue.edition);
-    cD.parentElement.hidden = !vue;                 // détail fermé : pas de cadre noir vide
+    $("#mt-zoom").hidden = $("#mt-pistes").hidden = !vue;
+    zoneD.hidden = !vue;                            // détail fermé : pas de cadre noir vide
     cD.classList.toggle("edition", !!(vue && vue.edition));
     if (!vue) {
       titre.textContent = "Détail : sélectionnez une ou plusieurs mesures (montage ou original) pour voir leurs notes.";
       return;
     }
-    const lignes = rangees(), ENT = 18, esp = l => l.vide ? 2 : 6;
+    const lignes = rangees(), ENT = 18, esp = l => l.vide || l.ferme ? 2 : 6;
     const H = ENT + lignes.reduce((t, l) => t + l.h + esp(l), 0) + 4;
+    cD.style.width = zoomH > 1 ? `${GOUT + (defile.clientWidth - GOUT) * zoomH}px` : "100%";
+    if (vueAffichee !== vue.titre) { vueAffichee = vue.titre; defile.scrollLeft = 0; }   // autres mesures : retour au début
     const {g, W} = prepare(cD, Math.max(H, 40)), sx = (W - GOUT) / vue.total;
+    const sl = defile.scrollLeft;
+    majZoom(lignes);
     vue.sx = sx; vue.lignes = lignes;
     g.font = "10px Consolas, monospace"; g.textBaseline = "alphabetic";
     vue.cols.forEach((c, i) => {
@@ -392,13 +408,8 @@ const MT = (() => {
       const rvb = l.p.son.startsWith("sf:") ? "92,198,184" : "240,168,60";
       l.y = y;
       g.fillStyle = "#1b1d21"; g.fillRect(GOUT, y, W - GOUT, l.h);
-      if (vue.edition) for (let q = l.lo; q <= l.hi; q++) if (q % 12 === 0) { g.fillStyle = "#24272d"; g.fillRect(GOUT, y + (l.hi - q + 1) * l.hn - 1, W - GOUT, 1); }
-      g.textBaseline = "middle"; g.fillStyle = l.vide ? "#6b6f78" : "#c9ccd2"; g.font = "11px 'Segoe UI', sans-serif";
-      let nom = l.p.nom; while (nom.length > 3 && g.measureText(nom).width > GOUT - 14) nom = nom.slice(0, -2) + "…";
-      g.fillText(nom, 8, y + Math.min(l.h / 2, 10));
-      g.fillStyle = "#7d828c"; g.font = "10px Consolas, monospace";
-      if (!l.vide) g.fillText(l.bas === l.haut ? nomNote(l.bas, l.p.canal) : `${nomNote(l.bas, l.p.canal)}–${nomNote(l.haut, l.p.canal)}`,
-                              8, y + Math.min(l.h / 2, 10) + 13);
+      if (l.clavier) for (let q = l.lo; q <= l.hi; q++) if (estNoire(q)) { g.fillStyle = "#17191c"; g.fillRect(GOUT, y + (l.hi - q) * l.hn, W - GOUT, l.hn); }
+      if (vue.edition && !l.ferme) for (let q = l.lo; q <= l.hi; q++) if (q % 12 === 0) { g.fillStyle = "#24272d"; g.fillRect(GOUT, y + (l.hi - q + 1) * l.hn - 1, W - GOUT, 1); }
       for (const n of l.ns) {
         const d = n._d ?? n.d, f = n._f ?? n.f, p = n._p ?? n.p;
         const fin = gesteD ? Math.min(f, vue.total) : finAffichee(n);
@@ -408,7 +419,13 @@ const MT = (() => {
         g.fillStyle = `rgba(${rvb},${(.35 + n.vel / 127 * .65).toFixed(2)})`;
         g.fillRect(x, yy, w, Math.max(2, l.hn - 1));
         if (choisie) { g.strokeStyle = "#ffffff"; g.lineWidth = 1.5; g.strokeRect(x - .5, yy - .5, w + 1, Math.max(2, l.hn - 1) + 1); }
-        cibles.push({x, y: yy - 1, w: Math.max(w, 4), h: Math.max(4, l.hn + 1), n, l});
+        if (!l.ferme) cibles.push({x, y: yy - 1, w: Math.max(w, 4), h: Math.max(4, l.hn + 1), n, l});
+      }
+      // deux notes de même hauteur qui se chevauchent : la partie commune en rouge (à régler : fusionner, ou raccourcir la première)
+      g.fillStyle = "rgba(255,93,74,.55)";          // transparent : les deux notes restent visibles dessous
+      for (const [a, b] of chevauchements(l.ns)) {
+        const d = Math.max(b._d ?? b.d, 0), f = Math.min(a._f ?? a.f, b._f ?? b.f, vue.total), yy = y + (l.hi - (a._p ?? a.p)) * l.hn;
+        g.fillRect(GOUT + d * sx, yy, Math.max(2, (f - d) * sx), Math.max(2, l.hn - 1));
       }
       y += l.h + esp(l);
     }
@@ -422,12 +439,92 @@ const MT = (() => {
       const m = TR.mesure() - (vue.de - 1), i = Math.floor(m);
       if (i >= 0 && i < vue.cols.length) { g.fillStyle = "#7dff9a"; g.fillRect(GOUT + (vue.cols[i].off + (m - i) * vue.cols[i].L) * sx - 1, 0, 2, H); }
     }
+    // la colonne des noms, par-dessus : elle reste visible quand le détail zoomé défile ; ▾ / ▸ = piste ouverte / fermée
+    g.fillStyle = "#141619"; g.fillRect(sl, 0, GOUT, H);
+    if (sl > 0) { g.fillStyle = "#4a4e57"; g.fillRect(sl + GOUT - 1, 0, 1, H); }
+    for (const l of lignes) {
+      const y0 = l.y + Math.min(l.h / 2, 10);
+      g.textBaseline = "middle"; g.font = "11px 'Segoe UI', sans-serif";
+      if (!l.vide) {                               // triangle : pointe à droite = fermée, en bas = ouverte
+        const tx = sl + 5, ty = y0;
+        g.fillStyle = "#b5b2a9"; g.beginPath();
+        if (l.ferme) { g.moveTo(tx + 1, ty - 5); g.lineTo(tx + 8, ty); g.lineTo(tx + 1, ty + 5); }
+        else { g.moveTo(tx, ty - 3); g.lineTo(tx + 10, ty - 3); g.lineTo(tx + 5, ty + 4); }
+        g.fill();
+      }
+      g.fillStyle = l.vide ? "#6b6f78" : "#c9ccd2";
+      const place = GOUT - 26 - (l.clavier ? CLAVIER : 0);
+      let nom = l.p.nom; while (nom.length > 3 && g.measureText(nom).width > place) nom = nom.slice(0, -2) + "…";
+      g.fillText(nom, sl + 18, y0);
+      g.fillStyle = "#7d828c"; g.font = "10px Consolas, monospace";
+      if (!l.vide && !l.ferme) g.fillText(l.bas === l.haut ? nomNote(l.bas, l.p.canal) : `${nomNote(l.bas, l.p.canal)}–${nomNote(l.haut, l.p.canal)}`, sl + 18, y0 + 13);
+      if (l.clavier) dessineClavier(g, l, sl + GOUT - CLAVIER - 2);
+    }    g.textBaseline = "alphabetic";
     const c0 = vue.cols[0];
     titre.innerHTML = `Détail : <b>${vue.titre}</b> · ${virgule(c0.bpm)} bpm · ${c0.num}/${c0.den}`
+      + `<span class="mt-note-choisie" id="mt-note-choisie"></span>`              // nom(s) des notes choisies (majEdition)
       + (vue.n > MAXD ? ` · ${MAXD} premières mesures affichées` : "")
       + (vue.edition ? " · <b>modifiable</b>"                     // le mode d'emploi est dans l'infobulle « i »
                      : " · lecture seule (sélectionnez dans le montage pour modifier)");
     majEdition();
+  }
+  // clavier d'une piste ouverte, sur les lignes de ses notes : touches à la hauteur de la souris et des notes choisies en ambre
+  function dessineClavier(g, l, x) {
+    const allumees = new Set(l.ns.filter(n => vue.choix.has(n)).map(n => n._p ?? n.p));
+    if (toucheSurvol && toucheSurvol.l === cleLigne(l.p)) allumees.add(toucheSurvol.p);
+    g.fillStyle = "#d8d4ca"; g.fillRect(x, l.y, CLAVIER, l.h);
+    for (let q = l.lo; q <= l.hi; q++) {
+      const yy = l.y + (l.hi - q) * l.hn, noire = estNoire(q), large = noire ? CLAVIER * .6 : CLAVIER;
+      if (allumees.has(q)) { g.fillStyle = "#ffae3c"; g.fillRect(x, yy, large, l.hn); }
+      else if (noire) { g.fillStyle = "#26282c"; g.fillRect(x, yy, large, l.hn); }
+      // séparation entre deux touches blanches : au milieu de la touche noire qui les sépare, sinon (Si-Do, Mi-Fa) sur toute la largeur
+      g.fillStyle = "#8a8f99";
+      if (noire) g.fillRect(x + large, Math.round(yy + l.hn / 2), CLAVIER - large, 1);
+      else if (q % 12 === 0 || q % 12 === 5) g.fillRect(x, yy + l.hn - 1, CLAVIER, 1);
+    }
+    g.font = "9px Consolas, monospace"; g.textAlign = "right"; g.fillStyle = "#1b1d21";
+    for (let q = l.lo; q <= l.hi; q++) if (q % 12 === 0) g.fillText(nomNote(q, l.p.canal), x + CLAVIER - 2, l.y + (l.hi - q + .5) * l.hn);
+    g.textAlign = "left";
+  }
+  // boutons du zoom et de « toutes les pistes », selon l'état du détail
+  function majZoom(lignes) {
+    $("#mt-zh-moins").disabled = zoomH === ZOOMS_H[0]; $("#mt-zh-plus").disabled = zoomH === ZOOMS_H.at(-1);
+    $("#mt-zv-moins").disabled = zoomV === ZOOMS_V[0]; $("#mt-zv-plus").disabled = zoomV === ZOOMS_V.at(-1);
+    $("#mt-zh-1").disabled = zoomH === 1; $("#mt-zv-1").disabled = zoomV === 1;
+    const b = $("#mt-pistes"), pleines = lignes.filter(l => !l.vide), ouvertes = pleines.some(l => !l.ferme);
+    const nom = ouvertes ? "plier" : "deplier", texte = ouvertes ? "Fermer toutes les pistes" : "Ouvrir toutes les pistes";
+    if (b.dataset.etat !== nom) { b.dataset.etat = nom; icone(b.querySelector("svg"), nom); b.title = texte; b.setAttribute("aria-label", texte); }   // icones/plier.svg, icones/deplier.svg
+    b.disabled = !pleines.length;
+  }
+  // zoom en largeur : l'instant sous `px` (position dans la bande visible, le milieu par défaut) ne bouge pas
+  function zoomeLargeur(sens, px = (defile.clientWidth + GOUT) / 2) {
+    const i = ZOOMS_H.indexOf(zoomH), z = ZOOMS_H[Math.max(0, Math.min(ZOOMS_H.length - 1, i + sens))];
+    if (!vue || z === zoomH) return;
+    const p = Math.max(GOUT, px), t = (defile.scrollLeft + p - GOUT) / vue.sx;
+    zoomH = z; dessineDetail();
+    defile.scrollLeft = GOUT + t * vue.sx - p;
+    dessineDetail();
+  }
+  function zoomeHauteur(sens) {
+    zoomV = ZOOMS_V[Math.max(0, Math.min(ZOOMS_V.length - 1, ZOOMS_V.indexOf(zoomV) + sens))];
+    dessineDetail();
+  }
+  // ouvrir / fermer des pistes ; les notes d'une piste fermée sortent de la sélection (plus de retouche à l'aveugle)
+  function ferme(cles) {
+    for (const k of cles) ouvertes.delete(k);
+    if (vue) for (const n of [...vue.choix]) if (!ouvertes.has(cleDeVue(n))) vue.choix.delete(n);
+  }
+  function basculePiste(l) {
+    const k = cleLigne(l.p);
+    if (ouvertes.has(k)) ferme([k]); else ouvertes.add(k);
+    bulle.hidden = true; dessineDetail();
+  }
+  function basculeToutes() {
+    if (!vue || !vue.lignes) return;
+    const pleines = vue.lignes.filter(l => !l.vide);
+    if (pleines.some(l => !l.ferme)) ferme(pleines.map(l => cleLigne(l.p)));
+    else for (const l of pleines) ouvertes.add(cleLigne(l.p));
+    dessineDetail();
   }
   function majEdition() {
     if (!vue || !vue.edition) return;
@@ -435,9 +532,11 @@ const MT = (() => {
     const noms = [...new Set(ch.sort((a, b) => a.d - b.d || a.p - b.p).map(x => nomNote(x.p, x.ch)))];   // nom(s) des notes choisies
     $("#mt-note-choisie").textContent = noms.slice(0, 4).join(" · ") + (noms.length > 4 ? " …" : "");
     const aide = [n ? `${n} note${n > 1 ? "s" : ""} sélectionnée${n > 1 ? "s" : ""} : ${noms.join(", ")}` : "Aucune note sélectionnée",
-      "Ajouter double-clic : nouvelle note",
-      "Ctrl+A tout",
-      "Modifier : étirer bord droit pour la durée · Maj+glisser : même hauteur · ↑ ↓ demi-ton · Maj+↑ ↓ octave",
+      "Pistes : clic sur le nom pour ouvrir ou fermer · notes modifiables dans une piste ouverte",
+      "Zoom : Ctrl+molette en largeur · clic sur ↔ ou ↕ pour revenir à ×1",
+      "Sélectionner : clic · Maj+clic ou Ctrl+clic pour ajouter ou retirer · glisser dans le vide : cadre · Ctrl+A : tout",
+      "Ajouter : double-clic",
+      "Modifier : glisser · bord gauche ou droit pour le début ou la fin · Maj+glisser : même hauteur · ↑ ↓ demi-ton · Maj+↑ ↓ octave · Suppr",
       "Copier : Ctrl+glisser · Ctrl+D à la suite · Ctrl+C puis Ctrl+V à la tête de lecture",
       "Échap : désélectionner, puis fermer le détail"].join("\n");
     $("#mt-aide-notes").title = aide;
@@ -508,31 +607,56 @@ const MT = (() => {
 
   // souris dans le détail
   function point(e) { const r = cD.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; }
-  const touchee = (x, y) => [...cibles].reverse().find(c => x >= c.x - 1 && x <= c.x + c.w + 1 && y >= c.y && y <= c.y + c.h);
+  const dansNoms = x => x < defile.scrollLeft + GOUT;        // la colonne des noms, fixe quand le détail défile
+  const surClavier = (l, x) => l.clavier && dansNoms(x) && x >= defile.scrollLeft + GOUT - CLAVIER - 2;
+  // la touche suit la souris, sur le clavier comme sur les notes de la piste
+  function majToucheSurvol(y) {
+    const l = vue && vue.lignes && ligneA(y);
+    const t = l && l.clavier ? {l: cleLigne(l.p), p: Math.max(l.lo, Math.min(l.hi, l.hi - Math.floor((y - l.y) / l.hn)))} : null;
+    if ((t && t.l) === (toucheSurvol && toucheSurvol.l) && (t && t.p) === (toucheSurvol && toucheSurvol.p)) return;
+    toucheSurvol = t; dessineDetail();
+  }
+  // note sous la souris : celle du dessus, sauf si le bord droit d'une autre est là (deux notes qui se chevauchent :
+  // le bord de la première est sous la seconde, et doit rester attrapable pour la raccourcir)
+  const touchee = (x, y) => {
+    if (dansNoms(x)) return undefined;
+    const sous = [...cibles].reverse().filter(c => x >= c.x - 1 && x <= c.x + c.w + 1 && y >= c.y && y <= c.y + c.h);
+    return sous.find(c => surBord(c, x) && x <= c.x + c.w + 1) || sous[0];
+  };
   const ligneA = y => vue.lignes.find(l => y >= l.y && y < l.y + l.h);
-  // bord droit d'une note (étirer la durée) : 30 % de sa largeur, jusqu'à 10 px ; 40 % pour une note étroite
-  const surBord = (t, x) => x >= t.x + t.w - (t.w < 10 ? t.w * 0.4 : Math.min(10, t.w * 0.3));
-  // curseur : ↔ sur le bord droit d'une note, main sur la note, croix dans le vide (lasso, double-clic = ajouter)
+  // bords d'une note (étirer : la fin à droite, le début à gauche) : 30 % de sa largeur, jusqu'à 10 px ; 40 % pour une note étroite
+  const zoneBord = t => t.w < 10 ? t.w * 0.4 : Math.min(10, t.w * 0.3);
+  const surBord = (t, x) => x >= t.x + t.w - zoneBord(t);
+  const surBordG = (t, x) => x <= t.x + zoneBord(t);
+  // curseur : ↔ sur un bord d'une note, main sur la note, croix dans le vide (lasso, double-clic = ajouter)
   function curseur(x, y, e) {
-    if (!vue || !vue.edition || x < GOUT) return cD.style.cursor = "";
+    if (!vue || !vue.edition) return cD.style.cursor = "";
+    const l = ligneA(y);
+    if (dansNoms(x) || (l && l.ferme)) return cD.style.cursor = "default";   // noms et pistes fermées : la flèche habituelle
     const t = touchee(x, y);
-    cD.style.cursor = !t ? "crosshair" : surBord(t, x) ? "ew-resize" : e.ctrlKey ? "copy" : "grab";
+    cD.style.cursor = !t ? "crosshair" : surBord(t, x) || surBordG(t, x) ? "ew-resize" : e.ctrlKey ? "copy" : "grab";
   }
   cD.addEventListener("pointerdown", e => {
-    if (!vue || !vue.edition) return;
-    const {x, y} = point(e); if (x < GOUT) return;
+    if (!vue) return;
+    const {x, y} = point(e);
+    if (dansNoms(x)) {                               // clic sur le nom d'une piste : l'ouvrir ou la fermer
+      const l = ligneA(y);
+      if (l && !l.vide && !surClavier(l, x)) basculePiste(l);   // le clavier, lui, ne ferme pas la piste
+      return;
+    }
+    if (!vue.edition) return;
     focus = "detail";
     const t = touchee(x, y);
     cD.setPointerCapture(e.pointerId);
     if (t) {
-      const avait = vue.choix.has(t.n), bord = surBord(t, x);
+      const avait = vue.choix.has(t.n), bord = surBord(t, x) ? "duree" : surBordG(t, x) ? "debut" : null;
       cD.style.cursor = bord ? "ew-resize" : e.ctrlKey ? "copy" : "grabbing";
       // Maj : clic = ajouter / retirer de la sélection (le retrait au relâcher, si la note n'a pas bougé) ;
       // glisser = déplacer dans le temps seulement (voir pointermove)
       if (e.shiftKey) vue.choix.add(t.n);
       else if (e.ctrlKey) vue.choix.add(t.n);        // Ctrl : glisser = copier ; simple clic = (dé)sélectionner (pointerup)
       else if (!avait) { vue.choix.clear(); vue.choix.add(t.n); }
-      gesteD = {type: bord ? "duree" : "deplace", x0: x, y0: y, n: t.n, l: t.l, bouge: false,
+      gesteD = {type: bord || "deplace", x0: x, y0: y, n: t.n, l: t.l, bouge: false,
                 copie: e.ctrlKey && !e.shiftKey && !bord, avait, note: t.n, majRetire: e.shiftKey && avait};
     } else {
       if (!e.shiftKey && !e.ctrlKey) vue.choix.clear();
@@ -542,7 +666,13 @@ const MT = (() => {
   });
   cD.addEventListener("pointermove", e => {
     const {x, y} = point(e);
-    if (!gesteD) { curseur(x, y, e); return survol(e, x, y); }
+    if (!gesteD) {
+      const l = vue && dansNoms(x) && ligneA(y);
+      cD.title = !l || l.vide ? "" : surClavier(l, x) ? nomNote(l.hi - Math.floor((y - l.y) / l.hn), l.p.canal)
+        : `${l.p.nom} : ${l.ferme ? "ouvrir" : "fermer"} la piste`;
+      majToucheSurvol(y);
+      curseur(x, y, e); return survol(e, x, y);
+    }
     const g = gesteD, dt = (x - g.x0) / vue.sx;
     if (Math.abs(x - g.x0) > 3 || Math.abs(y - g.y0) > 3) g.bouge = true;
     if (!g.bouge) return;
@@ -562,6 +692,9 @@ const MT = (() => {
     } else if (g.type === "duree") {
       const fin = Math.max(g.n.d + pasT(g.n.d) / 2, cale(g.n.f + dt)), dec = fin - g.n.f;
       for (const n of vue.choix) n._f = Math.max(n.d + 10, n.f + dec);
+    } else if (g.type === "debut") {                  // bord gauche : le début bouge, la fin reste
+      const debut = Math.min(g.n.f - pasT(g.n.d) / 2, cale(g.n.d + dt)), dec = debut - g.n.d;
+      for (const n of vue.choix) n._d = Math.max(0, Math.min(n.f - 10, n.d + dec));
     } else {
       g.x1 = x; g.y1 = y;
       const x0 = Math.min(g.x0, x), x1 = Math.max(g.x0, x), y0 = Math.min(g.y0, y), y1 = Math.max(g.y0, y);
@@ -575,10 +708,10 @@ const MT = (() => {
     if (!g) return;
     const p = point(e); curseur(p.x, p.y, e);
     if (!g.bouge && ((g.copie && g.avait) || g.majRetire)) vue.choix.delete(g.note);   // Ctrl/Maj+clic sur une note déjà choisie : retirée
-    if (g.bouge && (g.type === "deplace" || g.type === "duree")) {
+    if (g.bouge && (g.type === "deplace" || g.type === "duree" || g.type === "debut")) {
       let change = false;
       for (const n of vue.choix) {
-        if (n._d !== undefined && (n._d !== n.d || n._p !== n.p)) change = true;
+        if (n._d !== undefined && (n._d !== n.d || (n._p ?? n.p) !== n.p)) change = true;
         if (n._f !== undefined && n._f !== n.f) change = true;
         n.d = n._d ?? n.d; n.f = n._f ?? n.f; n.p = n._p ?? n.p; delete n._d; delete n._f; delete n._p;
       }
@@ -592,25 +725,57 @@ const MT = (() => {
   });
   cD.addEventListener("dblclick", e => {
     if (!vue || !vue.edition) return;
-    const {x, y} = point(e); if (x < GOUT || touchee(x, y)) return;
-    const l = ligneA(y); if (!l) return;
+    const {x, y} = point(e); if (dansNoms(x) || touchee(x, y)) return;
+    const l = ligneA(y); if (!l || l.ferme) return;
     const d = cale((x - GOUT) / vue.sx), p = Math.max(l.lo, Math.min(l.hi, Math.round(l.hi - (y - l.y) / l.hn + .5)));
     const n = {ch: l.p.canal, p, vel: velNouvelle, d, f: d + pasT(d)};
     vue.notes.push(n); vue.choix = new Set([n]); valideNotes();
   });
+  // paires [première, seconde] de notes de même hauteur dont la seconde commence avant la fin de la première
+  function chevauchements(ns) {
+    const parHauteur = new Map(), res = [];
+    for (const n of ns) { const p = n._p ?? n.p; if (!parHauteur.has(p)) parHauteur.set(p, []); parHauteur.get(p).push(n); }
+    for (const liste of parHauteur.values()) {
+      liste.sort((a, b) => (a._d ?? a.d) - (b._d ?? b.d));
+      for (let i = 0; i < liste.length; i++)
+        for (let j = i + 1; j < liste.length && (liste[j]._d ?? liste[j].d) < (liste[i]._f ?? liste[i].f); j++) res.push([liste[i], liste[j]]);
+    }
+    return res;
+  }
   function survol(e, x, y) {
     const t = vue && touchee(x, y);
     if (!t) { bulle.hidden = true; return; }
     const {n, l} = t, c = colDe(n.d), temps = c.L / c.num;
+    const chevauche = chevauchements(l.ns).some(([a, b]) => a === n || b === n);
     bulle.innerHTML = `${l.p.nom} · <b>${nomNote(n.p, l.p.canal)}</b> (MIDI ${n.p}) · vélocité ${n.vel}<br>`
       + `${vue.de ? `mesure ${vue.de + vue.cols.indexOf(c)} du montage (orig ${c.b})` : `mesure ${c.b} de l'original`}`
-      + `, temps ${virgule(1 + (n.d - c.off) / temps)} · durée ${virgule((n.f - n.d) / temps)} temps`;
+      + `, temps ${virgule(1 + (n.d - c.off) / temps)} · durée ${virgule((n.f - n.d) / temps)} temps`
+      + (chevauche ? `<br><span class="alerte">chevauche une autre ${nomNote(n.p, l.p.canal)} : fusionner, ou raccourcir la première</span>` : "");
     bulle.hidden = false;
-    const zone = cD.parentElement.getBoundingClientRect();
+    const zone = zoneD.getBoundingClientRect();
     bulle.style.left = Math.min(e.clientX - zone.left + 12, zone.width - bulle.offsetWidth - 4) + "px";
     bulle.style.top = (e.clientY - zone.top + 14) + "px";
   }
-  cD.addEventListener("mouseleave", () => bulle.hidden = true);
+  cD.addEventListener("mouseleave", () => { bulle.hidden = true; if (toucheSurvol) { toucheSurvol = null; dessineDetail(); } });
+  // zoom : boutons ; Ctrl + molette sur les notes = zoom en largeur, autour de la souris
+  $("#mt-zh-moins").addEventListener("click", () => zoomeLargeur(-1));
+  $("#mt-zh-plus").addEventListener("click", () => zoomeLargeur(1));
+  $("#mt-zv-moins").addEventListener("click", () => zoomeHauteur(-1));
+  $("#mt-zv-plus").addEventListener("click", () => zoomeHauteur(1));
+  $("#mt-zh-1").addEventListener("click", () => { zoomH = 1; dessineDetail(); });
+  $("#mt-zv-1").addEventListener("click", () => { zoomV = 1; dessineDetail(); });
+  $("#mt-pistes").addEventListener("click", basculeToutes);
+  cD.addEventListener("wheel", e => {
+    if (!e.ctrlKey || !vue) return;
+    e.preventDefault();
+    zoomeLargeur(e.deltaY < 0 ? 1 : -1, e.clientX - defile.getBoundingClientRect().left);
+  }, {passive: false});
+  let defileAttend = false;                          // le détail qui défile : un seul dessin par image
+  defile.addEventListener("scroll", () => {
+    if (defileAttend) return;
+    defileAttend = true;
+    requestAnimationFrame(() => { defileAttend = false; dessineDetail(); });
+  });
   $("#mt-vel").addEventListener("input", e => $("#mt-velv").textContent = e.target.value);
   // curseur de vélocité : décale chaque note choisie de la même quantité (les nuances entre elles sont gardées)
   $("#mt-vel").addEventListener("change", e => {
@@ -718,6 +883,14 @@ const MT = (() => {
   });
   // le bouton boucle du transport se pose sur les mesures sélectionnées du montage
   TR.boucleSur(() => ONGLET === "montage" && sel && focus !== "src" ? sel : null);
+  // « Suivre la lecture », détail zoomé : la bande défile pour garder la tête de lecture visible
+  function tientTete() {
+    if (!suivre || zoomH === 1 || !vue || !vue.edition || !vue.sx) return;
+    const m = TR.mesure() - (vue.de - 1), i = Math.floor(m);
+    if (i < 0 || i >= vue.cols.length) return;
+    const x = (vue.cols[i].off + (m - i) * vue.cols[i].L) * vue.sx, visible = defile.clientWidth - GOUT;
+    if (x < defile.scrollLeft || x > defile.scrollLeft + visible - 20) defile.scrollLeft = x;
+  }
   function suitLecture() {
     if (!suivre || !sel || focus === "src" || !vue || !vue.edition) return;
     const m = Math.floor(TR.mesure() + 1e-6) + 1;          // mesure du montage sous la tête de lecture
@@ -732,7 +905,7 @@ const MT = (() => {
     if (ONGLET !== "montage" || !MORCEAU || saisieEnCours(true)) return;
     const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey, notes = focus === "detail" && vue && vue.edition;
     let f = null;
-    if (notes && c && k === "a") f = () => { vue.choix = new Set(vue.notes); dessineDetail(); };
+    if (notes && c && k === "a") f = () => { vue.choix = new Set(vue.notes.filter(n => ouvertes.has(cleDeVue(n)))); dessineDetail(); };
     else if (notes && (e.key === "Delete" || e.key === "Backspace")) f = supprimeNotes;
     else if (notes && e.key === "ArrowUp" && !c) f = () => transpose(e.shiftKey ? 12 : 1);
     else if (notes && e.key === "ArrowDown" && !c) f = () => transpose(e.shiftKey ? -12 : -1);
@@ -767,6 +940,7 @@ const MT = (() => {
       const t = TR.instant(), bouge = !$("#lecteur").paused || t !== derniere;   // le temps, pas la mesure :
       derniere = t;                                     // un couper/coller de mesures ne fait pas sauter le détail
       if (bouge) suitLecture();
+      if (!$("#lecteur").paused) tientTete();
       dessineMontage();
       if (bouge) dessineDetail();
     }

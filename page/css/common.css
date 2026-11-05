@@ -29,3 +29,11 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 input[type=range]{width:120px;accent-color:var(--amber)}
 .val{font:12px var(--mono);color:var(--muted);width:42px;text-align:right;font-variant-numeric:tabular-nums}
 audio{display:none}
+
+/* question à l'opérateur (confirme(), outils.js) */
+.confirme{width:440px;max-width:calc(100vw - 32px);padding:18px 20px 16px;color:var(--text);background:var(--deck);border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 32px #000c}
+.confirme::backdrop{background:#0009}
+.confirme h2{margin:0 0 8px;font:600 14px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--text)}
+.confirme p{margin:0 0 16px;font-size:13.5px;color:#c9ccd2;overflow-wrap:anywhere}
+.confirme-boutons{display:flex;justify-content:flex-end;gap:8px}
+.confirme .oui{background:var(--amber);border-color:var(--amber);color:#1b1d21;font-weight:600}

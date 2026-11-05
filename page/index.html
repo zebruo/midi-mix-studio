@@ -25,8 +25,8 @@
     </div>
     <div class="doc" id="doc" hidden>
       <span class="doc-etat" id="doc-etat" aria-live="polite"></span>
-      <button type="button" id="doc-annuler" title="Annuler (Ctrl+Z)">↶ Annuler</button>
-      <button type="button" id="doc-retablir" title="Rétablir (Ctrl+Y)">↷ Rétablir</button>
+      <button type="button" id="doc-annuler" class="ico grand" title="Annuler (Ctrl+Z)" aria-label="Annuler"><svg viewBox="0 0 16 16" data-icone="annuler"></svg></button>
+      <button type="button" id="doc-retablir" class="ico grand" title="Rétablir (Ctrl+Y)" aria-label="Rétablir"><svg viewBox="0 0 16 16" data-icone="retablir"></svg></button>
       <button type="button" id="doc-enregistrer" class="play ico" aria-label="Enregistrer" title="Enregistrer (Ctrl+S)"><svg viewBox="0 0 16 16" data-icone="enregistrer"></svg></button>
       <button type="button" id="doc-version" class="ico" aria-label="Enregistrer une copie" title="Enregistrer une copie (_v2, _v3…)"><svg viewBox="0 0 16 16" data-icone="copie"></svg></button>
       <button type="button" id="doc-script" class="ico" aria-label="Mettre à jour le script" hidden><svg viewBox="0 0 16 16" data-icone="script"></svg></button>
@@ -57,16 +57,16 @@
   <section id="panneau-montage" role="tabpanel" aria-labelledby="onglet-montage" class="panneau montage" hidden>
     <div class="mt-outils">
       <div class="mt-groupe">
-        <button type="button" id="mt-couper" title="Couper la sélection (Ctrl+X)">Couper</button>
-        <button type="button" id="mt-copier" title="Copier la sélection (Ctrl+C)">Copier</button>
-        <button type="button" id="mt-coller-avant" title="Coller avant la sélection (Ctrl+V)">Coller avant</button>
-        <button type="button" id="mt-coller-apres" title="Coller après la sélection (Ctrl+Maj+V)">Coller après</button>
-        <button type="button" id="mt-dupliquer" title="Dupliquer la sélection juste après elle (Ctrl+D)">Dupliquer</button>
-        <button type="button" id="mt-supprimer" title="Supprimer la sélection (Suppr)">Supprimer</button>
-        <button type="button" id="mt-garder" title="Ne garder que la sélection">Garder la sélection</button>
+        <button type="button" id="mt-couper" class="ico" title="Couper la sélection (Ctrl+X)" aria-label="Couper"><svg viewBox="0 0 16 16" data-icone="couper"></svg></button>
+        <button type="button" id="mt-copier" class="ico" title="Copier la sélection (Ctrl+C)" aria-label="Copier"><svg viewBox="0 0 16 16" data-icone="copier"></svg></button>
+        <button type="button" id="mt-coller-avant" class="ico" title="Coller avant la sélection (Ctrl+V)" aria-label="Coller avant"><svg viewBox="0 0 16 16" data-icone="coller-avant"></svg></button>
+        <button type="button" id="mt-coller-apres" class="ico" title="Coller après la sélection (Ctrl+Maj+V)" aria-label="Coller après"><svg viewBox="0 0 16 16" data-icone="coller-apres"></svg></button>
+        <button type="button" id="mt-dupliquer" class="ico" title="Dupliquer la sélection juste après elle (Ctrl+D)" aria-label="Dupliquer"><svg viewBox="0 0 16 16" data-icone="dupliquer"></svg></button>
+        <button type="button" id="mt-supprimer" class="ico" title="Supprimer la sélection (Suppr)" aria-label="Supprimer"><svg viewBox="0 0 16 16" data-icone="supprimer"></svg></button>
+        <button type="button" id="mt-garder" class="ico" title="Ne garder que la sélection" aria-label="Garder la sélection"><svg viewBox="0 0 16 16" data-icone="garder"></svg></button>
       </div>
-      <div class="mt-groupe droite">
-        <button type="button" id="mt-reinit" title="Abandonner le montage pas encore appliqué : revenir au document tel qu'il était en arrivant dans l'onglet (↶ Annuler le rétablit)">Abandonner le montage</button>
+      <div class="mt-groupe">
+        <button type="button" id="mt-reinit" class="ico" title="Abandonner le montage pas encore appliqué : revenir au document tel qu'il était en arrivant dans l'onglet (↶ Annuler le rétablit)" aria-label="Abandonner le montage"><svg viewBox="0 0 16 16" data-icone="abandonner"></svg></button>
       </div>
     </div>
     <div class="mt-info" id="mt-info" aria-live="polite"></div>
@@ -82,23 +82,32 @@
           <span class="mt-aide-notes" id="mt-aide-notes" tabindex="0" role="img" aria-label="Aide" hidden><svg viewBox="0 0 16 16" data-icone="info"></svg></span>
         </div>
         <div class="mt-detail-boutons">
+          <div class="mt-zoom" id="mt-zoom" hidden>
+            <button type="button" id="mt-zh-1" class="mt-zoom-1" title="Zoom en largeur à ×1" aria-label="Zoom en largeur à ×1">↔</button>
+            <button type="button" id="mt-zh-moins" title="Moins de zoom en largeur" aria-label="Moins de zoom en largeur">−</button>
+            <button type="button" id="mt-zh-plus" title="Plus de zoom en largeur (Ctrl + molette)" aria-label="Plus de zoom en largeur">+</button>
+            <button type="button" id="mt-zv-1" class="mt-zoom-1" title="Zoom en hauteur à ×1" aria-label="Zoom en hauteur à ×1">↕</button>
+            <button type="button" id="mt-zv-moins" title="Moins de zoom en hauteur" aria-label="Moins de zoom en hauteur">−</button>
+            <button type="button" id="mt-zv-plus" title="Plus de zoom en hauteur" aria-label="Plus de zoom en hauteur">+</button>
+          </div>
+          <button type="button" id="mt-pistes" hidden><svg viewBox="0 0 16 16" data-icone="plier"></svg></button>
           <button type="button" id="mt-suivre" aria-pressed="false" aria-label="Suivre la lecture" hidden
             title="Suivre la lecture : le détail passe aux mesures suivantes quand la tête de lecture sort de celles affichées (la sélection suit)"><svg viewBox="0 0 16 16" data-icone="suivre"></svg></button>
           <button type="button" id="mt-detail-fermer" title="Fermer le détail (Échap)" aria-label="Fermer le détail" hidden>✕</button>
         </div>
       </div>
       <div class="mt-edition" id="mt-edition" hidden>
-        <span class="mt-note-choisie" id="mt-note-choisie"></span>
         <label class="k" for="mt-pas">Grille</label>
         <select id="mt-pas" title="Calage des notes déplacées, allongées ou ajoutées">
           <option value="1">1 temps</option><option value="0.5">½ temps (croche)</option>
           <option value="0.25" selected>¼ temps (double croche)</option><option value="0.3333333">⅓ temps (triolet)</option>
           <option value="0.1666667">⅙ temps</option><option value="0.0625">libre (1/16 de temps)</option>
         </select>
-        <label class="k" for="mt-vel" title="Force d'attaque des notes choisies (1 à 127) : plus forte, la note sonne plus fort et plus brillante ; dans le détail, elle est plus opaque">Vélocité</label>
-        <span class="mt-vel"><input id="mt-vel" type="range" min="1" max="127" value="80" disabled><span class="val" id="mt-velv">—</span></span>
-        <button type="button" id="mt-vel-moins" title="Plus doux (−10)" disabled>− doux</button>
-        <button type="button" id="mt-vel-plus" title="Plus fort (+10)" disabled>+ fort</button>
+        <span class="mt-vel" title="Vélocité, force d'attaque des notes choisies (1 à 127) : plus forte, la note sonne plus fort et plus brillante ; dans le détail, elle est plus opaque">
+          <button type="button" id="mt-vel-moins" class="ico" title="Plus doux (vélocité −10)" aria-label="Plus doux" disabled><svg viewBox="0 0 16 16" data-icone="velocite-moins"></svg></button>
+          <input id="mt-vel" type="range" min="1" max="127" value="80" aria-label="Vélocité" disabled>
+          <button type="button" id="mt-vel-plus" class="ico" title="Plus fort (vélocité +10)" aria-label="Plus fort" disabled><svg viewBox="0 0 16 16" data-icone="velocite-plus"></svg></button>
+          <span class="val" id="mt-velv">—</span></span>
         <button type="button" id="mt-oct-bas" title="Une octave plus bas (Maj+↓)" disabled>8va ↓</button>
         <button type="button" id="mt-dt-bas" title="Un demi-ton plus bas (↓)" disabled>½ ↓</button>
         <button type="button" id="mt-dt-haut" title="Un demi-ton plus haut (↑)" disabled>½ ↑</button>
@@ -107,7 +116,7 @@
         <button type="button" id="mt-notes-suppr" class="ico" title="Supprimer les notes sélectionnées (Suppr)" aria-label="Supprimer les notes" disabled><svg viewBox="0 0 16 16" data-icone="supprimer"></svg></button>
         <button type="button" id="mt-notes-orig" class="ico" title="Notes d'origine des mesures affichées" aria-label="Notes d'origine"><svg viewBox="0 0 16 16" data-icone="origine"></svg></button>
       </div>
-      <div class="mt-detail-zone"><canvas id="mt-detail" aria-label="Notes des mesures sélectionnées"></canvas>
+      <div class="mt-detail-zone"><div class="mt-detail-defile"><canvas id="mt-detail" aria-label="Notes des mesures sélectionnées"></canvas></div>
         <div class="mt-bulle" id="mt-bulle" hidden></div></div>
     </div>
   </section>
@@ -146,7 +155,7 @@
         </div>
         <div class="tx-groupe" role="group" aria-label="Vélocité">
           <span class="k">Vélocité</span>
-          <button type="button" data-a="vel-10" title="Vélocité −10">− doux</button><button type="button" data-a="vel+10" title="Vélocité +10">+ fort</button>
+          <button type="button" data-a="vel-10" class="ico" title="Plus doux (vélocité −10)" aria-label="Plus doux"><svg viewBox="0 0 16 16" data-icone="velocite-moins"></svg></button><button type="button" data-a="vel+10" class="ico" title="Plus fort (vélocité +10)" aria-label="Plus fort"><svg viewBox="0 0 16 16" data-icone="velocite-plus"></svg></button>
         </div>
         <div class="tx-groupe" role="group" aria-label="Hauteur">
           <span class="k">Hauteur</span>
@@ -211,9 +220,9 @@
             <button class="touche" id="t-avance" type="button" title="Avancer d'une mesure (→)" aria-label="Avancer"><svg viewBox="0 0 16 16" data-icone="avance"></svg></button>
             <button class="touche" id="t-boucle" type="button" title="Boucle entre L et R (touche B)" aria-label="Boucle" aria-pressed="false"><svg viewBox="0 0 16 16" data-icone="boucle"></svg></button>
           </div></div>
-        <div class="bloc"><span class="etiq">Position · mesure . temps . tick</span><div class="lcd" id="lcd-pos">  1 . 1 . 000</div></div>
-        <div class="bloc"><span class="etiq">Temps</span><div class="lcd vert" id="lcd-temps">0:00.000</div></div>
-        <div class="bloc"><span class="etiq">Tempo · mesure</span><div class="lcd petit" id="lcd-tempo">120.0<small>bpm</small>  4/4</div></div>
+        <div class="bloc position" title="Position : mesure . temps . tick"><span class="etiq">Mesure</span><span class="etiq">Temps</span><span class="etiq">Tick</span><div class="lcd"><span id="pos-mesure">  1</span><span>.</span><span id="pos-temps">1</span><span>.</span><span id="pos-tick">000</span></div></div>
+        <div class="bloc"><span class="etiq">Durée</span><div class="lcd vert" id="lcd-temps">0:00.000</div></div>
+        <div class="bloc tempo"><span class="etiq">Tempo</span><span class="etiq">Mesure</span><div class="lcd petit"><span id="tempo-valeur">120.0<small>bpm</small></span><span id="tempo-mesure">4/4</span></div></div>
         <div class="bloc calcul-bloc repos" id="t-calcul" role="status" aria-live="polite" title="Calcul du son : en cours, ou durée du dernier">
           <span class="etiq">Calcul</span>
           <div class="lcd petit"><svg viewBox="0 0 16 16" class="anneau" aria-hidden="true" data-icone="calcul"></svg><svg viewBox="0 0 16 16" class="coche" aria-hidden="true" data-icone="fait"></svg><span id="t-calcul-s">prêt</span></div></div>

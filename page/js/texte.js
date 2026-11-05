@@ -270,7 +270,7 @@ const TX = (() => {
   });
   // actions sur les lignes cochées
   document.querySelector(".tx-actions").addEventListener("click", e => {
-    const a = e.target.dataset && e.target.dataset.a; if (!a || !coches.size) return;
+    const b = e.target.closest("button[data-a]"), a = b && b.dataset.a; if (!a || !coches.size) return;   // closest : clic sur l'icône du bouton
     const ids = [...coches].sort((x, y) => x - y);
     avant();
     if (a === "suppr") { for (const i of ids.reverse()) lignes.splice(i, 1); return apres(true); }
@@ -483,8 +483,9 @@ const TX = (() => {
       verifier();
     } catch (e) { $("#tx-etat").textContent = ""; statut(e.message, "err"); }
   }
-  $("#tx-reprendre").addEventListener("click", () => {
-    if (lignes.join("\n") !== original && !confirm("Abandonner les corrections pas encore appliquées et revenir au texte du document ?")) return;
+  $("#tx-reprendre").addEventListener("click", async () => {
+    if (lignes.join("\n") !== original && !(await confirme({titre: "Abandonner les corrections ?", texte: "Les corrections pas encore appliquées seront perdues, et le texte du document revient.",
+                                                            oui: "Abandonner", non: "Garder"}))) return;
     try { localStorage.removeItem(cle()); } catch (e) {}
     charge(true);
   });

@@ -170,8 +170,13 @@ def morceaux_du_dossier(r):
 
 
 def liste_fichiers():
-    res = [{"chemin": p, "affiche": os.path.relpath(p, r)} for r in list(CONFIG["racines"]) for p in morceaux_du_dossier(r)]
-    return sorted(res, key=lambda x: x["affiche"].lower())
+    """Morceaux, dossier racine par dossier racine (dans l'ordre de config.json), triés par nom dans chacun ;
+    « racine » = le dossier tel que la page l'affiche en titre de groupe."""
+    res = []
+    for r in list(CONFIG["racines"]):
+        res += sorted(({"chemin": p, "affiche": os.path.relpath(p, r), "racine": affiche_dossier(r)} for p in morceaux_du_dossier(r)),
+                      key=lambda x: x["affiche"].lower())
+    return res
 
 
 # ───────────────────────────── dossiers de morceaux (« racines » de config.json) ─────────────────────────────
@@ -180,10 +185,15 @@ VERROU_RACINES = threading.Lock()
 VERROU_FENETRE = threading.Lock()    # une seule fenêtre de choix de dossier à la fois
 
 
-def dossiers_morceaux():
-    """Pour le panneau de la page : chaque dossier, affiché sans le début commun du profil utilisateur."""
+def affiche_dossier(r):
+    """Un dossier tel que la page l'affiche : sans le début commun du profil utilisateur (C:\\Users\\nom\\)."""
     profil = os.path.expanduser("~")
-    return [{"chemin": r, "affiche": os.path.relpath(r, profil) if est_dans(r, profil) else r} for r in CONFIG["racines"]]
+    return os.path.relpath(r, profil) if est_dans(r, profil) else r
+
+
+def dossiers_morceaux():
+    """Pour le panneau de la page : chaque dossier de morceaux."""
+    return [{"chemin": r, "affiche": affiche_dossier(r)} for r in CONFIG["racines"]]
 
 
 def racines_du_fichier():

@@ -9,7 +9,7 @@ body:not(.occupe) .onglets [role=tab][aria-selected=false]:not(:disabled):hover{
 .panneau[hidden],.mixage-seul[hidden]{display:none}
 
 .montage{background:var(--deck);border:1px solid var(--line);border-radius:6px;padding:14px 18px;gap:10px}
-.mt-outils{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.mt-outils{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:flex-end}
 .mt-groupe{display:flex;flex-wrap:wrap;gap:6px}
 .mt-groupe.droite{margin-left:auto}
 .mt-outils button{padding:6px 10px;font-size:12.5px}
@@ -21,11 +21,19 @@ body:not(.occupe) .onglets [role=tab][aria-selected=false]:not(:disabled):hover{
 #mt-grille{cursor:default}
 .mt-detail{display:flex;flex-direction:column;gap:6px}
 .mt-detail-tete{display:flex;gap:10px;align-items:center;justify-content:space-between}
-.mt-detail-tete button{background:none;border:1px solid var(--line);border-radius:4px;padding:3px 7px;font-size:14px;line-height:1;color:var(--amber)}
+.mt-detail-tete button{background:none;border:1px solid var(--line);border-radius:4px;padding:3px 7px;font-size:14px;line-height:1;color:var(--amber);-webkit-text-stroke:.6px currentColor}   /* − + ↔ ↕ ✕ : trait un peu plus épais */
 .mt-detail-tete button:hover{color:#ffc56a;border-color:var(--amber)}
 .mt-detail-boutons{display:flex;gap:6px;flex-shrink:0}
-#mt-suivre{color:var(--muted)}
-#mt-suivre svg{display:block;width:14px;height:14px;fill:currentColor}
+#mt-suivre,#mt-pistes{color:var(--muted)}
+#mt-suivre svg,#mt-pistes svg{display:block;width:14px;height:14px;fill:currentColor}
+#mt-pistes[hidden]{display:none}
+.mt-zoom{display:flex;align-items:center;gap:3px;margin-right:6px;color:var(--muted);font-size:13px}
+.mt-zoom[hidden]{display:none}
+.mt-zoom button{min-width:24px;color:var(--text)}
+.mt-zoom button+.mt-zoom-1{margin-left:6px}
+.mt-zoom .mt-zoom-1{min-width:0;padding:3px 4px;background:none;border-color:transparent;color:var(--amber)}   /* clic : retour à ×1 */
+.mt-zoom .mt-zoom-1:disabled{opacity:1;color:var(--muted)}
+.mt-detail-defile{overflow-x:auto;scrollbar-color:var(--line) transparent}
 #mt-suivre[aria-pressed=true]{color:var(--amber);border-color:var(--amber)}
 .mt-detail-titre{font:12.5px var(--mono);color:var(--muted)}
 .mt-detail-titre b{color:var(--text);font-weight:600}
@@ -38,13 +46,14 @@ body:not(.occupe) .onglets [role=tab][aria-selected=false]:not(:disabled):hover{
 .mt-aide-notes[hidden]{display:none}
 .mt-aide-notes:hover,.mt-aide-notes:focus-visible{color:var(--text)}
 .mt-aide-notes svg{width:16px;height:16px;fill:currentColor;display:block}
-.mt-note-choisie{font:600 12.5px var(--mono);color:var(--text);min-width:5ch}
-.mt-note-choisie:empty{display:none}
+.mt-note-choisie{font:600 12.5px var(--mono);color:var(--text)}
+.mt-note-choisie:not(:empty)::before{content:" · ";font-weight:400;color:var(--muted)}
 .mt-vel{display:inline-flex;align-items:center;gap:6px}           /* curseur de vélocité et son chiffre, collés */
-.mt-vel .val{width:3ch;text-align:left}
+.mt-vel .val{width:3ch;text-align:center}
 .mt-detail-zone canvas.edition{cursor:crosshair}
 .mt-detail-zone[hidden]{display:none}
 .mt-detail-zone{position:relative;background:#141619;border:1px solid #000;border-radius:4px;padding:8px}
 .mt-detail-zone canvas{display:block;width:100%}
 .mt-bulle{position:absolute;pointer-events:none;background:#0a0b0c;border:1px solid var(--line);border-radius:3px;
   padding:4px 8px;font:12px var(--mono);color:var(--text);white-space:nowrap;box-shadow:0 2px 8px #000a;z-index:2}
+.mt-bulle .alerte{color:var(--led)}   /* note qui en chevauche une autre de même hauteur */

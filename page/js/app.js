@@ -166,7 +166,8 @@ async function versionVoisine(sens) {
   if (!DOC) return;
   const i = DOC.versions.indexOf(DOC.courante) + sens;
   if (i < 0 || i >= DOC.versions.length) return;
-  if ((MT.enAttente() || TX.enAttente()) && !confirm("Abandonner le montage ou les corrections pas encore appliqués ?")) return;
+  if ((MT.enAttente() || TX.enAttente()) && !(await confirme({titre: "Abandonner les modifications en attente ?",
+    texte: "Le montage ou les corrections pas encore appliqués seront abandonnés.", oui: "Abandonner", non: "Garder"}))) return;
   MT.oublie(); TX.oublie();
   try {
     appliqueDoc(await calcul(api("/api/doc/version", {doc: DOC.id, version: DOC.versions[i]})));
@@ -231,7 +232,18 @@ document.addEventListener("keydown", e => {
   if (c && k === "z" && !e.shiftKey) { e.preventDefault(); annulerRetablir(-1); }
   else if (c && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); annulerRetablir(1); }
 });
-window.addEventListener("beforeunload", e => { if (estModifie()) { e.preventDefault(); e.returnValue = ""; } });
+// quitter ou recharger avec des modifications : le navigateur impose sa propre fenêtre, qu'une page ne peut pas remplacer.
+// F5 / Ctrl+R passent seuls par notre question (le travail non enregistré est proposé à la reprise, voir plus bas)
+let rechargeAccepte = false;
+window.addEventListener("beforeunload", e => { if (estModifie() && !rechargeAccepte) { e.preventDefault(); e.returnValue = ""; } });
+document.addEventListener("keydown", async e => {
+  if (!(e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")) || !estModifie()) return;
+  e.preventDefault();
+  if (await confirme({titre: "Recharger la page ?", texte: "Le document a des modifications non enregistrées. Leur reprise vous sera proposée au rechargement.",
+                      oui: "Recharger", non: "Rester"})) {
+    rechargeAccepte = true; location.reload();
+  }
+});
 
 // ───── onglets (le montage ou les corrections en cours sont appliqués en quittant l'onglet)
 async function onglet(nom) {
@@ -261,7 +273,8 @@ $("#onglet-texte").addEventListener("click", () => onglet("texte"));
 // choisir un morceau dans la liste l'ouvre aussitôt ; si on renonce (ou en cas d'échec), la liste revient au document en cours
 async function charger() {
   const f = $("#fichier").value; if (!f) return;
-  if (estModifie() && !confirm("Le document en cours a des modifications non enregistrées. Les abandonner pour charger ce morceau ?"))
+  if (estModifie() && !(await confirme({titre: "Changer de morceau ?", texte: "Le document en cours a des modifications non enregistrées. Elles seront abandonnées.",
+                                        oui: "Abandonner et ouvrir", non: "Rester"})))
     return afficheMorceau();
   occupe(true); statut("Lecture du morceau…");
   try {
@@ -300,7 +313,15 @@ async function rendu(cible) {
 async function cache() { try { const c = await api("/api/cache"); $("#vider").textContent = `Vider le cache (${c.mo} Mo)`; } catch (e) {} }
 async function listeFichiers() {
   const fichiers = await api("/api/fichiers"), sel = $("#fichier"), avant = sel.value;
-  sel.replaceChildren(...fichiers.map(f => new Option(f.affiche, f.chemin)));
+  const groupes = new Map();                     // un groupe par dossier racine, son nom en titre (non sélectionnable)
+  for (const f of fichiers) {
+    if (!groupes.has(f.racine)) { const g = document.createElement("optgroup"); g.label = f.racine; groupes.set(f.racine, g); }
+    groupes.get(f.racine).append(new Option(f.affiche, f.chemin));
+  }
+  const invite = new Option("— Choisir un fichier MIDI —", "");   // affichée tant qu'aucun morceau n'est ouvert
+  invite.disabled = true;
+  sel.replaceChildren(invite, ...groupes.values());
+  sel.value = "";
   if (fichiers.some(f => f.chemin === avant)) sel.value = avant;
   else if (DOC && avant) {                       // son dossier vient d'être retiré de la liste : le morceau reste ouvert
     sel.add(new Option(`${avant.split(/[\\/]/).pop()} (dossier retiré)`, avant));
@@ -361,7 +382,8 @@ async function verifieVersion() {
     if (travail && travail.modifie && !demande) {
       try {
         const r = await api("/api/doc/reprendre", {doc: travail.doc});
-        if (confirm(`Reprendre le travail non enregistré sur « ${nomDe(r.doc.copie || r.doc.original)} » ?`)) {
+        if (await confirme({titre: "Reprendre le travail ?", texte: `« ${nomDe(r.doc.copie || r.doc.original)} » a des modifications non enregistrées.`,
+                            oui: "Reprendre", non: "Ne pas reprendre"})) {
           appliqueDoc(r, {reglages: travail.reglages, reference: travail.reference});
           afficheMorceau();
           return statut("Travail repris là où vous l'aviez laissé (pas encore enregistré).", "ok");

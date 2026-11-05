@@ -93,8 +93,34 @@ const saisieEnCours = (curseurs = false) => {
   const el = document.activeElement;
   return !!el && /INPUT|SELECT|TEXTAREA/.test(el.tagName) && (curseurs || el.type !== "range");
 };
+// Question à l'opérateur, dans le style de la console (à la place de confirm() du navigateur) :
+// await confirme({titre, texte, oui, non}) → true si « oui » ; Échap ou « non » → false. Entrée valide le bouton actif.
+function confirme({titre, texte, oui, non}) {
+  let d = document.getElementById("confirme");
+  if (!d) {
+    d = document.createElement("dialog"); d.id = "confirme"; d.className = "confirme";
+    d.innerHTML = `<h2></h2><p></p><div class="confirme-boutons"><button type="button" class="non"></button><button type="button" class="oui"></button></div>`;
+    d.addEventListener("keydown", e => e.stopPropagation());   // les raccourcis de la console (espace, flèches…) ne passent pas
+    document.body.append(d);
+  }
+  if (d.open) return Promise.resolve(false);
+  d.querySelector("h2").textContent = titre;
+  d.querySelector("p").textContent = texte;
+  const bOui = d.querySelector(".oui"), bNon = d.querySelector(".non");
+  bOui.textContent = oui; bNon.textContent = non;
+  return new Promise(fin => {
+    const repond = r => { bOui.onclick = bNon.onclick = d.oncancel = null; d.close(); fin(r); };
+    bOui.onclick = () => repond(true);
+    bNon.onclick = () => repond(false);
+    d.oncancel = e => { e.preventDefault(); repond(false); };
+    d.showModal();
+    bOui.focus();
+  });
+}
 // Un bouton cliqué à la souris ne garde pas le focus : sinon la première touche du transport (espace, flèches) fait
 // apparaître son cadre ambre de navigation au clavier (detail = 0 : activé au clavier, le focus reste)
 document.addEventListener("click", e => {
   if (e.detail > 0 && document.activeElement instanceof HTMLButtonElement && document.activeElement.contains(e.target)) document.activeElement.blur();
 });
+// de même, une liste déroulante rend le focus dès qu'on y a choisi : son cadre ambre ne reste pas
+document.addEventListener("change", e => { if (e.target instanceof HTMLSelectElement) e.target.blur(); });
